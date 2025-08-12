@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stereo Spectrum Analyzer</title>
+    <style>
+      body {
+        background-color: #000;
+        color: #fff;
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 3px;     /* Adjust this value to change the padding around the canvas */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      h1 {
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      .canvas-container {
+        position: relative;
+        border: 1px solid #333;
+        background-color: #111;
+        width: 100%;          
+        max-width: 2000px;    /* Maximum canvas width - adjust this to change max width */
+        height: 90vh;         /* Canvas height as 60% of viewport height */
+        min-height: 400px;    /* Minimum canvas height - adjust this to change min height */
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        border: none;
+        outline: none;
+      }
+
+      .legend {
+        position: absolute;
+        top: 1px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+        z-index: 999;
+        font-size: 14px;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .legend-color {
+        width: 20px;
+        height: 3px;
+        border: 1px solid #444;
+      }
+
+      .left-channel {
+        background-color: #00ff00;
+      }
+
+      .right-channel {
+        background-color: #0080ff;
+      }
+
+      .channel-indicator {
+        background-color: #ffaa00;
+      }
+
+      .status {
+        margin-top: 10px;
+        font-size: 14px;
+        color: #aaa;
+      }
+
+      .settings-btn {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background-color: #333;
+        color: #fff;
+        border: 1px solid #555;
+        padding: 10px;
+        cursor: pointer;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        z-index: 1000;
+      }
+
+      .settings-btn:hover {
+        background-color: #555;
+      }
+
+      .hold-btn {
+        position: absolute;
+        top: 60px;
+        left: 10px;
+        background-color: #333;
+        color: #fff;
+        border: 1px solid #555;
+        padding: 10px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 14px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        transition: background-color 0.2s;
+      }
+
+      .hold-btn:hover {
+        background-color: #555;
+      }
+
+      .hold-btn.active {
+        background-color: #00aa00;
+        border-color: #00cc00;
+      }
+
+      .hold-btn.active:hover {
+        background-color: #00cc00;
+      }
+
+      .settings-panel {
+        position: absolute;
+        top: 60px;
+        left: 10px;
+        background-color: #222;
+        border: 1px solid #555;
+        border-radius: 8px;
+        padding: 0;
+        width: 380px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        z-index: 1001;
+        display: none;
+        /* Max height will be dynamically set by JavaScript based on canvas container */
+      }
+
+      .settings-panel.two-column {
+        width: 620px; /* Double width for two columns plus gap */
+      }
+
+      .settings-tabs {
+        display: flex;
+        border-bottom: 1px solid #555;
+        border-radius: 8px 8px 0 0;
+        overflow: hidden;
+        flex-wrap: nowrap;
+      }
+
+      .settings-tab {
+        flex: 1;
+        background-color: #333;
+        color: #ccc;
+        border: none;
+        padding: 12px 6px;
+        cursor: pointer;
+        font-size: 12px;
+        border-right: 1px solid #555;
+        transition: background-color 0.2s;
+      }
+
+      .settings-tab:last-child {
+        border-right: none;
+      }
+
+      .settings-tab:hover {
+        background-color: #444;
+      }
+
+      .settings-tab.active {
+        background-color: #555;
+        color: #fff;
+      }
+
+      .settings-content {
+        padding: 20px;
+        overflow-y: auto;
+        /* Max height will be dynamically set by JavaScript */
+      }
+
+      .settings-page {
+        display: none;
+      }
+
+      .settings-page.active {
+        display: block;
+      }
+
+      .settings-page.active.two-column {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+
+      .settings-page.two-column .setting-item {
+        margin-bottom: 15px;
+      }
+
+      .setting-item {
+        margin-bottom: 15px;
+      }
+
+      .setting-item label {
+        display: block;
+        margin-bottom: 5px;
+        color: #ccc;
+        font-size: 14px;
+      }
+
+      .setting-item input[type="range"] {
+        width: 100%;
+        background: #333;
+      }
+
+      .setting-item select {
+        width: 100%;
+        background-color: #333;
+        color: #fff;
+        border: 1px solid #555;
+        padding: 5px;
+        border-radius: 4px;
+      }
+
+      #defaultDeviceIndicator {
+        font-size: 12px;
+        color: #aaa;
+        margin-top: 5px;
+        font-style: italic;
+      }
+
+      .setting-item button {
+        background-color: #333;
+        color: #fff;
+        border: 1px solid #555;
+        padding: 8px 16px;
+        cursor: pointer;
+        border-radius: 4px;
+        margin-right: 10px;
+      }
+
+      .setting-item button:hover {
+        background-color: #555;
+      }
+
+      .setting-item button:disabled {
+        background-color: #222;
+        cursor: not-allowed;
+      }
+
+      .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 24px;
+      }
+
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+        position: absolute;
+      }
+
+      .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #555;
+        transition: 0.4s;
+        border-radius: 24px;
+      }
+
+      .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.4s;
+        border-radius: 50%;
+      }
+
+      .toggle-switch input:checked + .toggle-slider {
+        background-color: #00ff00;
+      }
+
+      .toggle-switch input:checked + .toggle-slider:before {
+        transform: translateX(26px);
+      }
+
+      .toggle-slider:hover {
+        background-color: #666;
+      }
+
+      .toggle-switch input:checked + .toggle-slider:hover {
+        background-color: #00cc00;
+      }
+
+      .freeze-btn {
+        position: absolute;
+        left: 10px;
+        background-color: #333;
+        color: #fff;
+        border: 1px solid #555;
+        padding: 10px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 12px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        transition: background-color 0.2s;
+      }
+
+      .freeze-btn:hover {
+        background-color: #555;
+      }
+
+      .freeze-btn.active {
+        background-color: #cc0000;
+        border-color: #ff0000;
+      }
+
+      .freeze-btn.active:hover {
+        background-color: #ff0000;
+      }
+
+      .freeze-btn-1 {
+        top: 110px;
+      }
+
+      .freeze-btn-2 {
+        top: 160px;
+      }
+
+      .freeze-btn-3 {
+        top: 210px;
+      }
+
+      .freeze-btn-4 {
+        top: 260px;
+      }
+
+      /* Individual button colors */
+      .freeze-btn-1.active {
+        background-color: #cc0000;
+        border-color: #ff0000;
+      }
+
+      .freeze-btn-1.active:hover {
+        background-color: #ff0000;
+      }
+
+      .freeze-btn-2.active {
+        background-color: #cccc00;
+        border-color: #ffff00;
+      }
+
+      .freeze-btn-2.active:hover {
+        background-color: #ffff00;
+      }
+
+      .freeze-btn-3.active {
+        background-color: #cc6600;
+        border-color: #ff8800;
+      }
+
+      .freeze-btn-3.active:hover {
+        background-color: #ff8800;
+      }
+
+      .freeze-btn-4.active {
+        background-color: #8800cc;
+        border-color: #aa00ff;
+      }
+
+      .freeze-btn-4.active:hover {
+        background-color: #aa00ff;
+      }
+
+      /* Network Tab Styles */
+      .network-status-display,
+      .server-config-display,
+      .access-info-display {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        padding: 12px;
+        margin-top: 8px;
+        font-size: 13px;
+        color: #fff;
+      }
+
+      .network-status-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .network-status-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .status-indicator {
+        font-size: 16px;
+        min-width: 20px;
+      }
+
+      .status-text {
+        font-weight: bold;
+        flex: 1;
+      }
+
+      .network-url,
+      .network-hint {
+        font-size: 12px;
+        opacity: 0.8;
+        margin-top: 4px;
+        font-family: "Courier New", monospace;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 4px 8px;
+        border-radius: 3px;
+        word-break: break-all;
+      }
+
+      .kiosk-indicator {
+        font-size: 12px;
+        opacity: 0.7;
+        margin-top: 4px;
+        color: #ffaa00;
+      }
+
+      .config-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+        font-size: 12px;
+      }
+
+      .config-label {
+        color: #ccc;
+      }
+
+      .config-value {
+        color: #fff;
+        font-weight: bold;
+        font-family: "Courier New", monospace;
+      }
+
+      .network-status-loading,
+      .server-config-loading,
+      .access-info-loading {
+        color: #aaa;
+        font-style: italic;
+        text-align: center;
+        padding: 20px;
+      }
+
+      /* Responsive adjustments for smaller screens */
+      @media (max-width: 1200px) {
+        .settings-panel {
+          width: 360px;
+        }
+        .settings-tab {
+          font-size: 11px;
+          padding: 10px 4px;
+        }
+      }
+
+      @media (max-width: 800px) {
+        .settings-panel {
+          width: 340px;
+        }
+        .settings-tab {
+          font-size: 10px;
+          padding: 8px 3px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="canvas-container">
+      <canvas id="spectrumCanvas"></canvas>
+
+      <!-- Legend moved inside canvas container -->
+      <div class="legend" id="legend">
+        <div class="legend-item" id="channelIndicator">
+          <div class="legend-color channel-indicator"></div>
+          <span id="channelIndicatorText">Stereo</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color left-channel"></div>
+          <span>Left</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color right-channel"></div>
+          <span>Right</span>
+        </div>
+        <div class="legend-item" id="overlapLegendItem">
+          <div class="legend-color" style="background-color: #ffffff"></div>
+          <span>Overlap (±1dB)</span>
+        </div>
+      </div>
+
+      <!-- Settings Button -->
+      <button class="settings-btn" id="settingsBtn">⚙️</button>
+
+      <!-- Hold Button -->
+      <button class="hold-btn" id="holdBtn">Hold</button>
+
+      <!-- Freeze Buttons -->
+      <button class="freeze-btn freeze-btn-1" id="freezeBtn1">1</button>
+      <button class="freeze-btn freeze-btn-2" id="freezeBtn2">2</button>
+      <button class="freeze-btn freeze-btn-3" id="freezeBtn3">3</button>
+      <button class="freeze-btn freeze-btn-4" id="freezeBtn4">4</button>
+
+      <!-- Settings Panel -->
+      <div class="settings-panel" id="settingsPanel">
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="general">
+            General
+          </button>
+          <button class="settings-tab" data-tab="spectrogram">
+            Spectrogram Interface
+          </button>
+          <button class="settings-tab" data-tab="spectrogram-drawing">
+            Spectrogram Drawing
+          </button>
+          <button class="settings-tab" data-tab="meters">Meters</button>
+          <button class="settings-tab" data-tab="network">Network</button>
+        </div>
+
+        <div class="settings-content">
+          <!-- General Tab -->
+          <div class="settings-page active" id="general-page">
+            <div class="setting-item">
+              <button id="startBtn">Start</button>
+              <button id="stopBtn" disabled>Stop</button>
+            </div>
+
+            <div class="setting-item">
+              <label for="audioDeviceSelect">Audio Input Device:</label>
+              <div style="display: flex; gap: 10px; align-items: center">
+                <select id="audioDeviceSelect" style="flex: 1">
+                  <option value="default">Loading devices...</option>
+                </select>
+                <button
+                  id="refreshDevicesBtn"
+                  style="padding: 5px 10px; font-size: 12px"
+                >
+                  Refresh
+                </button>
+              </div>
+              <div id="defaultDeviceIndicator">
+                Default device will be indicated
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <label for="minFreqSlider"
+                >Min Frequency: <span id="minFreqValue">20 Hz</span></label
+              >
+              <input
+                type="range"
+                id="minFreqSlider"
+                min="20"
+                max="500"
+                step="10"
+                value="20"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label for="maxFreqSlider"
+                >Max Frequency: <span id="maxFreqValue">20.0 kHz</span></label
+              >
+              <input
+                type="range"
+                id="maxFreqSlider"
+                min="6000"
+                max="20000"
+                step="100"
+                value="20000"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label for="gainSlider"
+                >Input Gain: <span id="gainValue">0.0 dB</span></label
+              >
+              <input
+                type="range"
+                id="gainSlider"
+                min="-30"
+                max="12"
+                step="0.1"
+                value="0"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label for="holdModeSelect">Hold Button Mode:</label>
+              <select id="holdModeSelect">
+                <option value="latch" selected>
+                  Latch (Click to Toggle On/Off)
+                </option>
+                <option value="temporary">
+                  Temporary (Hold While Pressed)
+                </option>
+              </select>
+            </div>
+
+            <div class="setting-item">
+              <button id="resetSettingsBtn" style="background-color: #cc4400; border-color: #ff5500;">
+                Reset Settings
+              </button>
+            </div>
+          </div>
+
+          <!-- Spectrogram Interface Tab -->
+          <div class="settings-page" id="spectrogram-page">
+            <div class="setting-item">
+              <label for="clickInfoSizeSelect">Click Info Size:</label>
+              <select id="clickInfoSizeSelect">
+                <option value="small">Small</option>
+                <option value="large" selected>Large</option>
+              </select>
+            </div>
+
+            <div class="setting-item">
+              <label for="smoothingSlider"
+                >Responsiveness: <span id="smoothingValue">90</span></label
+              >
+              <input
+                type="range"
+                id="smoothingSlider"
+                min="1"
+                max="100"
+                step="1"
+                value="90"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label for="calibrationSlider"
+                >Amplitude Offset:
+                <span id="calibrationValue">0.0 dB</span></label
+              >
+              <input
+                type="range"
+                id="calibrationSlider"
+                min="-15"
+                max="15"
+                step="0.1"
+                value="0.0"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label for="overlappingToggle">Overlapping Display:</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="overlappingToggle" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <label for="overlapToleranceSlider"
+                >Overlap Amount:
+                <span id="overlapToleranceValue">1.0 dB</span></label
+              >
+              <input
+                type="range"
+                id="overlapToleranceSlider"
+                min="0.1"
+                max="2.0"
+                step="0.1"
+                value="1.0"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label for="spectrogramRangeSlider"
+                >Spectrogram Range:
+                <span id="spectrogramRangeValue">-100 dB to 0 dB</span></label
+              >
+              <input
+                type="range"
+                id="spectrogramRangeSlider"
+                min="-100"
+                max="-50"
+                step="10"
+                value="-100"
+              />
+            </div>
+          </div>
+
+          <!-- Spectrogram Drawing Tab -->
+          <div class="settings-page" id="spectrogram-drawing-page">
+            <div class="setting-item">
+              <label for="fftSizeSelect">Resolution (FFT Size):</label>
+              <select id="fftSizeSelect">
+                <option value="512">512 (Fast/Low Resolution)</option>
+                <option value="1024">1024 (Fast)</option>
+                <option value="2048">2048 (Balanced)</option>
+                <option value="4096" selected>4096 (Default/Balanced)</option>
+                <option value="8192">8192 (High Resolution)</option>
+                <option value="16384">16384 (Very High Resolution)</option>
+                <option value="32768">32768 (Maximum Resolution)</option>
+              </select>
+            </div>
+
+            <div class="setting-item">
+              <label for="pixelAveragingToggle"
+                >Pixel-Based FFT Averaging:</label
+              >
+              <label class="toggle-switch">
+                <input type="checkbox" id="pixelAveragingToggle" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <label for="multiPixelSmoothingSlider"
+                >Multi-Pixel Smoothing:
+                <span id="multiPixelSmoothingValue">3</span></label
+              >
+              <input
+                type="range"
+                id="multiPixelSmoothingSlider"
+                min="1"
+                max="5"
+                step="1"
+                value="3"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label for="frequencyDependentSmoothingToggle"
+                >Frequency-Dependent Smoothing:</label
+              >
+              <label class="toggle-switch">
+                <input
+                  type="checkbox"
+                  id="frequencyDependentSmoothingToggle"
+                  checked
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <label for="noiseFloorSubtractionSlider"
+                >Noise Floor Subtraction:
+                <span id="noiseFloorSubtractionValue">0 dB</span></label
+              >
+              <input
+                type="range"
+                id="noiseFloorSubtractionSlider"
+                min="0"
+                max="20"
+                step="1"
+                value="0"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label for="peakEnvelopeToggle">Peak Envelope Mode:</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="peakEnvelopeToggle" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Meters Tab -->
+          <div class="settings-page" id="meters-page">
+            <div class="setting-item">
+              <label for="meterSpeedSelect">Meter Speed:</label>
+              <select id="meterSpeedSelect">
+                <option value="slow">Slow</option>
+                <option value="medium" selected>Medium</option>
+                <option value="fast">Fast</option>
+              </select>
+            </div>
+
+            <div class="setting-item">
+              <label for="holdTimeSlider"
+                >Hold Time: <span id="holdTimeValue">0.5s</span></label
+              >
+              <input
+                type="range"
+                id="holdTimeSlider"
+                min="0.5"
+                max="2.0"
+                step="0.1"
+                value="0.5"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label for="decibelsSpeedSlider"
+                >Decibel Display Speed:
+                <span id="decibelsSpeedValue">150ms</span></label
+              >
+              <input
+                type="range"
+                id="decibelsSpeedSlider"
+                min="10"
+                max="250"
+                step="5"
+                value="150"
+              />
+            </div>
+
+            <div class="setting-item">
+              <label for="rmsWeightingSelect">RMS Weighting:</label>
+              <select id="rmsWeightingSelect">
+                <option value="Z" selected>Z-weighting (Flat)</option>
+                <option value="A">A-weighting (Human Hearing)</option>
+                <option value="C">C-weighting (Entertainment)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Network Tab -->
+          <div class="settings-page" id="network-page">
+            <div class="setting-item">
+              <label>Network Status:</label>
+              <div id="networkStatusDisplay">
+                <div class="network-status-loading">
+                  Loading network information...
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <label>Server Configuration:</label>
+              <div id="serverConfigDisplay">
+                <div class="server-config-loading">
+                  Loading server configuration...
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <label>Access Information:</label>
+              <div id="accessInfoDisplay">
+                <div class="access-info-loading">
+                  Loading access information...
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <button id="refreshNetworkBtn">Refresh Network Info</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="status" id="status">Click "Start" to begin</div>
+
+    <!-- Include the JavaScript files -->
+    <script src="js/meters.js"></script>
+    <script src="js/spectrogram.js"></script>
+    <script src="js/settings-persistence.js"></script>
+    <script src="js/spectrum-analyzer-integration.js"></script>
+
+    <!-- Uncomment the line below to run tests (check browser console for results) -->
+    <!-- <script src="js/test_analyzer.js"></script> -->
+  </body>
+</html>

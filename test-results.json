@@ -1,0 +1,89 @@
+{
+  "timestamp": "2025-07-23T05:30:42.311Z",
+  "totalDuration": 119304,
+  "summary": {
+    "total": 11,
+    "passed": 3,
+    "failed": 8,
+    "successRate": 27
+  },
+  "results": [
+    {
+      "suite": "Unit Tests",
+      "pattern": "unit-fast.test.js",
+      "success": true,
+      "duration": 987,
+      "exitCode": 0
+    },
+    {
+      "suite": "Integration Tests",
+      "pattern": "integration.test.js server.test.js",
+      "success": false,
+      "duration": 331,
+      "exitCode": 1
+    },
+    {
+      "suite": "Cross-Platform Tests",
+      "pattern": "cross-platform-*.test.js",
+      "success": false,
+      "duration": 341,
+      "exitCode": 1
+    },
+    {
+      "suite": "Performance Tests",
+      "pattern": "pi-performance.test.js",
+      "success": false,
+      "duration": 15661,
+      "exitCode": 1
+    },
+    {
+      "suite": "Audio Device Tests",
+      "pattern": "audio-device-scenarios.test.js",
+      "success": false,
+      "duration": 1064,
+      "exitCode": 1
+    },
+    {
+      "suite": "Spectrum Analyzer Tests",
+      "pattern": "spectrum-analyzer-integration.test.js",
+      "success": false,
+      "duration": 74244,
+      "exitCode": null
+    },
+    {
+      "suite": "End-to-End Tests",
+      "pattern": "e2e-*.test.js",
+      "success": false,
+      "duration": 628,
+      "exitCode": 1
+    },
+    {
+      "suite": "Comprehensive Integration Tests",
+      "pattern": "comprehensive-integration.test.js",
+      "success": false,
+      "duration": 2377,
+      "exitCode": 1
+    },
+    {
+      "suite": "Network Accessibility Tests",
+      "pattern": "network-accessibility.test.js",
+      "success": true,
+      "duration": 691,
+      "exitCode": 0
+    },
+    {
+      "suite": "Security Tests",
+      "pattern": "security-*.test.js",
+      "success": false,
+      "duration": 344,
+      "exitCode": 1
+    },
+    {
+      "suite": "Accessibility Tests",
+      "pattern": "accessibility-*.test.js",
+      "success": true,
+      "duration": 609,
+      "exitCode": 0
+    }
+  ]
+}

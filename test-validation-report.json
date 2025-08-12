@@ -1,0 +1,85 @@
+{
+  "timestamp": "2025-07-23T05:24:10.230Z",
+  "summary": {
+    "testFiles": 16,
+    "sourceFiles": 11,
+    "requirements": 6,
+    "acceptanceCriteria": 29
+  },
+  "coverage": {
+    "files": {
+      "tested": 9,
+      "total": 11,
+      "percentage": 82
+    }
+  },
+  "testFiles": [
+    {
+      "name": "accessibility-compliance.test.js",
+      "category": "accessibility"
+    },
+    {
+      "name": "audio-device-scenarios.test.js",
+      "category": "scenarios"
+    },
+    {
+      "name": "audioDeviceService.test.js",
+      "category": "unit"
+    },
+    {
+      "name": "comprehensive-integration.test.js",
+      "category": "integration"
+    },
+    {
+      "name": "cross-platform-integration.test.js",
+      "category": "integration"
+    },
+    {
+      "name": "e2e-user-workflows.test.js",
+      "category": "e2e"
+    },
+    {
+      "name": "integration.test.js",
+      "category": "integration"
+    },
+    {
+      "name": "logger.test.js",
+      "category": "other"
+    },
+    {
+      "name": "network-accessibility.test.js",
+      "category": "accessibility"
+    },
+    {
+      "name": "pi-performance.test.js",
+      "category": "performance"
+    },
+    {
+      "name": "platformDetection.test.js",
+      "category": "unit"
+    },
+    {
+      "name": "preferencesService.test.js",
+      "category": "unit"
+    },
+    {
+      "name": "security-validation.test.js",
+      "category": "security"
+    },
+    {
+      "name": "server.test.js",
+      "category": "integration"
+    },
+    {
+      "name": "spectrum-analyzer-integration.test.js",
+      "category": "integration"
+    },
+    {
+      "name": "unit-fast.test.js",
+      "category": "unit"
+    }
+  ],
+  "recommendations": [
+    "Add tests for 2 untested source files"
+  ]
+}

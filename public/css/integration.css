@@ -1,0 +1,37 @@
+/* Pi Audio Kiosk Integration Styles */
+
+/* Audio device selection dropdown */
+.audio-device-select {
+  width: 100%;
+  background-color: #333;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 5px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+/* Status message styling */
+.status-message {
+  color: #4CAF50;
+  font-weight: bold;
+}
+
+/* Error message styling */
+.error-message {
+  color: #f44336;
+  font-weight: bold;
+}
+
+/* Responsive adjustments for small screens */
+@media (max-width: 768px) {
+  .settings-panel {
+    width: 90%;
+    max-width: 300px;
+  }
+  
+  .settings-panel.two-column {
+    width: 90%;
+    max-width: 600px;
+  }
+}
