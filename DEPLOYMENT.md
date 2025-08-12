@@ -16,7 +16,7 @@ For a quick automated deployment, use the deployment script:
 
 ```bash
 # Clone the repository
-git clone <your-repo-url> /home/pi/pi-audio-kiosk
+git clone https://github.com/mattstegner/SpectraBox.git /home/pi/pi-audio-kiosk
 cd /home/pi/pi-audio-kiosk
 
 # Run the deployment script
