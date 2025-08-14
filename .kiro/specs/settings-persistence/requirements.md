@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This feature adds persistent settings storage to the pi-audio-kiosk application, allowing all user preferences from the Settings panel to be automatically saved to disk and restored on application startup. The system will use a human-readable JSON format for storage, provide settings validation, and include a reset functionality to restore defaults.
+This feature adds persistent settings storage to the SpectraBox application, allowing all user preferences from the Settings panel to be automatically saved to disk and restored on application startup. The system will use a human-readable JSON format for storage, provide settings validation, and include a reset functionality to restore defaults.
 
 ## Requirements
 

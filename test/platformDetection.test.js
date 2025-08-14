@@ -95,25 +95,25 @@ describe('PlatformDetection', () => {
 
     it('should return macOS config path', () => {
       os.platform.mockReturnValue('darwin');
-      const expected = path.join('/home/user', 'Library', 'Application Support', 'pi-audio-kiosk');
+      const expected = path.join('/home/user', 'Library', 'Application Support', 'spectrabox');
       expect(PlatformDetection.getConfigPath()).toBe(expected);
     });
 
     it('should return Linux config path', () => {
       os.platform.mockReturnValue('linux');
-      const expected = path.join('/home/user', '.config', 'pi-audio-kiosk');
+      const expected = path.join('/home/user', '.config', 'spectrabox');
       expect(PlatformDetection.getConfigPath()).toBe(expected);
     });
 
     it('should return Windows config path', () => {
       os.platform.mockReturnValue('win32');
-      const expected = path.join('/home/user', 'AppData', 'Roaming', 'pi-audio-kiosk');
+      const expected = path.join('/home/user', 'AppData', 'Roaming', 'spectrabox');
       expect(PlatformDetection.getConfigPath()).toBe(expected);
     });
 
     it('should return default config path for unknown platforms', () => {
       os.platform.mockReturnValue('freebsd');
-      const expected = path.join('/home/user', '.pi-audio-kiosk');
+      const expected = path.join('/home/user', '.spectrabox');
       expect(PlatformDetection.getConfigPath()).toBe(expected);
     });
   });
@@ -123,7 +123,7 @@ describe('PlatformDetection', () => {
       os.platform.mockReturnValue('linux');
       os.homedir.mockReturnValue('/home/user');
       
-      const expected = path.join('/home/user', '.config', 'pi-audio-kiosk', 'preferences.json');
+      const expected = path.join('/home/user', '.config', 'spectrabox', 'preferences.json');
       expect(PlatformDetection.getPreferencesPath()).toBe(expected);
     });
   });
@@ -168,7 +168,7 @@ describe('PlatformDetection', () => {
         hostname: 'raspberrypi',
         isRaspberryPi: true,
         audioStrategy: 'linux',
-        configPath: path.join('/home/pi', '.config', 'pi-audio-kiosk'),
+        configPath: path.join('/home/pi', '.config', 'spectrabox'),
         nodeVersion: process.version
       });
     });
@@ -193,7 +193,7 @@ describe('PlatformDetection', () => {
       
       expect(PlatformDetection.ensureConfigDirectory()).toBe(true);
       expect(fs.mkdirSync).toHaveBeenCalledWith(
-        path.join('/home/user', '.config', 'pi-audio-kiosk'),
+        path.join('/home/user', '.config', 'spectrabox'),
         { recursive: true }
       );
     });

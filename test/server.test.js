@@ -43,7 +43,7 @@ function createTestApp() {
 
   // Health check endpoint
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'OK', message: 'Pi Audio Kiosk server is running' });
+    res.json({ status: 'OK', message: 'SpectraBox server is running' });
   });
 
   // GET /api/audio-devices
@@ -374,7 +374,7 @@ describe('Express.js Server API Endpoints', () => {
 
       expect(response.body).toEqual({
         status: 'OK',
-        message: 'Pi Audio Kiosk server is running'
+        message: 'SpectraBox server is running'
       });
     });
   });
@@ -946,7 +946,7 @@ describe('Express.js Server API Endpoints', () => {
         hostname: 'test-machine',
         isRaspberryPi: false,
         audioStrategy: 'macos',
-        configPath: '/Users/test/.config/pi-audio-kiosk',
+        configPath: '/Users/test/.config/spectrabox',
         nodeVersion: 'v16.14.0'
       };
 

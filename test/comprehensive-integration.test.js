@@ -65,7 +65,7 @@ describe('Comprehensive Integration Tests', () => {
 
       // 2. Verify initial load
       const title = await page.title();
-      expect(title).toContain('Pi Audio Kiosk');
+      expect(title).toContain('Stereo Spectrum Analyzer');
 
       // 3. Wait for audio devices to load
       await page.waitForSelector('#audio-device-selector option', { timeout: 10000 });

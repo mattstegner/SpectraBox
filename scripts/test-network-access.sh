@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Pi Audio Kiosk - Network Access Test Script
+# SpectraBox - Network Access Test Script
 # This script tests network accessibility functionality
 
 set -e
 
-echo "🌐 Pi Audio Kiosk - Network Access Test"
+echo "🌐 SpectraBox - Network Access Test"
 echo "======================================"
 
 # Colors for output
@@ -117,7 +117,7 @@ test_network_access() {
 main() {
     local port=${1:-3000}
     
-    log_info "Testing Pi Audio Kiosk network accessibility..."
+    log_info "Testing SpectraBox network accessibility..."
     echo ""
     
     # Show local IP addresses
@@ -145,7 +145,7 @@ main() {
         log_error "Network accessibility test failed!"
         echo ""
         echo "Troubleshooting:"
-        echo "  1. Make sure the Pi Audio Kiosk server is running"
+        echo "  1. Make sure the SpectraBox server is running"
         echo "  2. Check if the port $port is available"
         echo "  3. Verify firewall settings allow connections on port $port"
         echo "  4. Ensure the server is configured to bind to 0.0.0.0"

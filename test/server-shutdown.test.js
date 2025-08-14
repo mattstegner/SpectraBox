@@ -11,7 +11,7 @@ describe('Server Shutdown Settings Save', () => {
 
   beforeAll(() => {
     // Set up test environment
-    testConfigDir = path.join(os.tmpdir(), 'test-pi-audio-kiosk-shutdown');
+    testConfigDir = path.join(os.tmpdir(), 'test-spectrabox-shutdown');
     testPreferencesPath = path.join(testConfigDir, 'preferences.json');
     
     // Set environment variables for test

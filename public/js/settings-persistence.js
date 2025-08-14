@@ -1,7 +1,7 @@
 /**
  * Settings Persistence Manager
  * 
- * Handles client-side settings persistence for the pi-audio-kiosk application.
+ * Handles client-side settings persistence for the SpectraBox application.
  * Provides automatic saving, loading, and validation of UI settings.
  */
 

@@ -1,6 +1,6 @@
-# Pi Audio Kiosk - Deployment Guide
+# SpectraBox - Deployment Guide
 
-This guide covers deploying the Pi Audio Kiosk application to a Raspberry Pi for production use.
+This guide covers deploying the SpectraBox application to a Raspberry Pi for production use.
 
 ## Prerequisites
 
@@ -16,8 +16,8 @@ For a quick automated deployment, use the deployment script:
 
 ```bash
 # Clone the repository
-git clone https://github.com/mattstegner/SpectraBox.git /home/pi/pi-audio-kiosk
-cd /home/pi/pi-audio-kiosk
+git clone https://github.com/mattstegner/SpectraBox.git /home/pi/spectrabox
+cd /home/pi/spectrabox
 
 # Run the deployment script
 ./scripts/deploy-pi.sh
@@ -53,8 +53,8 @@ sudo apt install -y alsa-utils pulseaudio pulseaudio-utils
 
 Clone and set up the application:
 ```bash
-git clone https://github.com/mattstegner/SpectraBox.git /home/pi/pi-audio-kiosk
-cd /home/pi/pi-audio-kiosk
+git clone https://github.com/mattstegner/SpectraBox.git /home/pi/spectrabox
+cd /home/pi/spectrabox
 npm ci --only=production
 ```
 
@@ -67,14 +67,14 @@ node generate-ssl.js
 
 Copy the systemd service file:
 ```bash
-sudo cp pi-audio-kiosk.service /etc/systemd/system/
+sudo cp spectrabox.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable pi-audio-kiosk
+sudo systemctl enable spectrabox
 ```
 
 Start the service:
 ```bash
-sudo systemctl start pi-audio-kiosk
+sudo systemctl start spectrabox
 ```
 
 ### Step 4: Kiosk Mode Setup (Optional)
@@ -120,12 +120,12 @@ For optimal performance on Raspberry Pi:
 
 Check service status:
 ```bash
-sudo systemctl status pi-audio-kiosk
+sudo systemctl status spectrabox
 ```
 
 View logs:
 ```bash
-sudo journalctl -u pi-audio-kiosk -f
+sudo journalctl -u spectrabox -f
 ```
 
 ### Performance Monitoring
@@ -194,10 +194,10 @@ Or use the emergency shortcut: **Ctrl+Alt+X**
 **Service won't start:**
 ```bash
 # Check service status
-sudo systemctl status pi-audio-kiosk
+sudo systemctl status spectrabox
 
 # Check logs
-sudo journalctl -u pi-audio-kiosk -n 50
+sudo journalctl -u spectrabox -n 50
 ```
 
 **High memory usage:**
@@ -225,7 +225,7 @@ chromium-browser --version
 
 ### Log Locations
 
-- **Application logs**: `sudo journalctl -u pi-audio-kiosk`
+- **Application logs**: `sudo journalctl -u spectrabox`
 - **System logs**: `/var/log/syslog`
 - **Browser logs**: Check systemd journal for display service
 
@@ -268,14 +268,14 @@ This enables HTTPS and allows microphone permissions to be remembered by browser
 ### Configuration Backup
 
 Important files to backup:
-- `/home/pi/pi-audio-kiosk/` (entire application directory)
-- `/etc/systemd/system/pi-audio-kiosk.service`
+- `/home/pi/spectrabox/` (entire application directory)
+- `/etc/systemd/system/spectrabox.service`
 - User preferences (stored in application directory)
 
 ### Recovery
 
 To restore from backup:
-1. Copy application files to `/home/pi/pi-audio-kiosk/`
+1. Copy application files to `/home/pi/spectrabox/`
 2. Install dependencies: `npm ci --only=production`
 3. Copy service file and reload systemd
 4. Start the service
@@ -285,10 +285,10 @@ To restore from backup:
 ### Application Updates
 
 ```bash
-cd /home/pi/pi-audio-kiosk
+cd /home/pi/spectrabox
 git pull origin main
 npm ci --only=production
-sudo systemctl restart pi-audio-kiosk
+sudo systemctl restart spectrabox
 ```
 
 ### System Updates
@@ -302,7 +302,7 @@ sudo reboot
 
 For issues and support:
 
-1. Check the logs: `sudo journalctl -u pi-audio-kiosk -f`
+1. Check the logs: `sudo journalctl -u spectrabox -f`
 2. Verify system requirements
 3. Test audio devices: `arecord -l`
 4. Check network connectivity

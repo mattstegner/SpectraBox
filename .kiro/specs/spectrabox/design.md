@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Pi Audio Kiosk system is a cross-platform Node.js web application that provides audio device management capabilities through a web interface. The system uses a lightweight Express.js server to serve static content and provide REST APIs for audio device enumeration and preference management. The architecture emphasizes cross-platform compatibility, resource efficiency, and seamless integration with existing spectrum analyzer functionality.
+The SpectraBox system is a cross-platform Node.js web application that provides audio device management capabilities through a web interface. The system uses a lightweight Express.js server to serve static content and provide REST APIs for audio device enumeration and preference management. The architecture emphasizes cross-platform compatibility, resource efficiency, and seamless integration with existing spectrum analyzer functionality.
 
 ## Architecture
 

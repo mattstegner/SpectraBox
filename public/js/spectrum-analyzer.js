@@ -1,5 +1,5 @@
 /**
- * Pi Audio Kiosk Spectrum Analyzer
+ * SpectraBox Spectrum Analyzer
  * Integrates with the Node.js backend API for audio device management
  */
 

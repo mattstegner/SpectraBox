@@ -403,7 +403,7 @@ describe('Comprehensive Test Suite - All Requirements', () => {
       // _Requirements: 6.3_
       // Check if systemd service file exists
       try {
-        const serviceFile = await fs.readFile('pi-audio-kiosk.service', 'utf8');
+        const serviceFile = await fs.readFile('spectrabox.service', 'utf8');
         expect(serviceFile).toContain('ExecStart');
         expect(serviceFile).toContain('node');
       } catch (error) {

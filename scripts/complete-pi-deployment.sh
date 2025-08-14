@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Pi Audio Kiosk - Complete Deployment Script for Raspberry Pi
+# SpectraBox - Complete Deployment Script for Raspberry Pi
 # This script handles the complete setup from source code to running kiosk
 # 
 # Usage: curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh | bash
@@ -8,17 +8,17 @@
 
 set -e  # Exit on any error
 
-echo "🚀 Pi Audio Kiosk - Complete Deployment Script"
-echo "=============================================="
-echo "This script will set up the complete Pi Audio Kiosk system"
+echo "🚀 SpectraBox - Complete Deployment Script"
+echo "=========================================="
+echo "This script will set up the complete SpectraBox system"
 echo ""
 
 # Configuration
 REPO_URL="https://github.com/mattstegner/SpectraBox.git"
-APP_NAME="pi-audio-kiosk"
+APP_NAME="spectrabox"
 APP_USER="pi"
-APP_DIR="/home/pi/pi-audio-kiosk"
-SERVICE_FILE="pi-audio-kiosk.service"
+APP_DIR="/home/pi/spectrabox"
+SERVICE_FILE="spectrabox.service"
 NODE_VERSION="18"
 
 # Colors for output
@@ -208,8 +208,8 @@ sudo systemctl enable "$APP_NAME"
 
 # Create log directory
 log_info "Creating log directory..."
-sudo mkdir -p /var/log/pi-audio-kiosk
-sudo chown $APP_USER:$APP_USER /var/log/pi-audio-kiosk
+sudo mkdir -p /var/log/spectrabox
+sudo chown $APP_USER:$APP_USER /var/log/spectrabox
 
 # =============================================================================
 # STEP 9: Configure Kiosk Mode
@@ -221,7 +221,7 @@ log_info "Creating kiosk startup script..."
 cat > /home/pi/start-kiosk.sh << 'EOF'
 #!/bin/bash
 
-# Pi Audio Kiosk - Kiosk Mode Startup Script
+# SpectraBox - Kiosk Mode Startup Script
 
 # Wait for the desktop to load
 sleep 10
@@ -281,8 +281,8 @@ mkdir -p /home/pi/.config/autostart
 cat > /home/pi/.config/autostart/kiosk.desktop << 'EOF'
 [Desktop Entry]
 Type=Application
-Name=Pi Audio Kiosk
-Comment=Start Pi Audio Kiosk in kiosk mode
+Name=SpectraBox
+Comment=Start SpectraBox in kiosk mode
 Icon=chromium-browser
 Exec=/home/pi/start-kiosk.sh
 Hidden=false
@@ -310,7 +310,7 @@ log_info "Creating recovery script..."
 cat > /home/pi/exit-kiosk.sh << 'EOF'
 #!/bin/bash
 
-# Pi Audio Kiosk - Exit Kiosk Mode Script
+# SpectraBox - Exit Kiosk Mode Script
 # Use this script to exit kiosk mode and return to desktop
 
 echo "Exiting kiosk mode..."
@@ -372,7 +372,7 @@ fi
 # STEP 11: Start Services
 # =============================================================================
 log_step "11. Starting services..."
-log_info "Starting the Pi Audio Kiosk service..."
+log_info "Starting the SpectraBox service..."
 sudo systemctl start "$APP_NAME"
 
 # Wait a moment for service to start
@@ -397,7 +397,7 @@ log_step "12. Final setup..."
 LOCAL_IP=$(hostname -I | awk '{print $1}')
 
 echo ""
-echo "🎉 Pi Audio Kiosk deployment completed successfully!"
+echo "🎉 SpectraBox deployment completed successfully!"
 echo "=================================================="
 echo ""
 echo "✅ Installation Summary:"

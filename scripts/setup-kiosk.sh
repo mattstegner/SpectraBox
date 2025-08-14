@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Pi Audio Kiosk - Kiosk Mode Setup Script
+# SpectraBox - Kiosk Mode Setup Script
 # This script configures the Raspberry Pi for kiosk mode operation
 
 set -e  # Exit on any error
 
-echo "🖥️  Pi Audio Kiosk - Kiosk Mode Setup"
+echo "🖥️  SpectraBox - Kiosk Mode Setup"
 echo "===================================="
 
 # Colors for output
@@ -33,7 +33,7 @@ if [ "$USER" != "pi" ]; then
     exit 1
 fi
 
-log_info "Setting up kiosk mode for Pi Audio Kiosk..."
+log_info "Setting up kiosk mode for SpectraBox..."
 
 # Step 1: Install required packages
 log_info "Installing kiosk mode dependencies..."
@@ -45,7 +45,7 @@ log_info "Creating kiosk startup script..."
 cat > /home/pi/start-kiosk.sh << 'EOF'
 #!/bin/bash
 
-# Pi Audio Kiosk - Kiosk Mode Startup Script
+# SpectraBox - Kiosk Mode Startup Script
 
 # Wait for the desktop to load
 sleep 10
@@ -102,8 +102,8 @@ mkdir -p /home/pi/.config/autostart
 cat > /home/pi/.config/autostart/kiosk.desktop << 'EOF'
 [Desktop Entry]
 Type=Application
-Name=Pi Audio Kiosk
-Comment=Start Pi Audio Kiosk in kiosk mode
+Name=SpectraBox
+Comment=Start SpectraBox in kiosk mode
 Icon=chromium-browser
 Exec=/home/pi/start-kiosk.sh
 Hidden=false
@@ -131,7 +131,7 @@ log_info "Creating recovery script..."
 cat > /home/pi/exit-kiosk.sh << 'EOF'
 #!/bin/bash
 
-# Pi Audio Kiosk - Exit Kiosk Mode Script
+# SpectraBox - Exit Kiosk Mode Script
 # Use this script to exit kiosk mode and return to desktop
 
 echo "Exiting kiosk mode..."
@@ -171,9 +171,9 @@ EOF
 
 # Step 8: Create systemd service for kiosk mode (alternative to autostart)
 log_info "Creating kiosk systemd service..."
-sudo tee /etc/systemd/system/pi-audio-kiosk-display.service > /dev/null << 'EOF'
+sudo tee /etc/systemd/system/spectrabox-display.service > /dev/null << 'EOF'
 [Unit]
-Description=Pi Audio Kiosk Display
+Description=SpectraBox Display
 After=graphical-session.target
 Wants=graphical-session.target
 
@@ -191,7 +191,7 @@ WantedBy=graphical-session.target
 EOF
 
 # Don't enable the systemd service by default (use autostart instead)
-# sudo systemctl enable pi-audio-kiosk-display
+# sudo systemctl enable spectrabox-display
 
 echo ""
 log_info "Kiosk mode setup completed! 🎉"
@@ -217,5 +217,5 @@ echo "  • The server is configured to accept connections from the network (0.0
 echo "  • Access from other devices: http://<raspberry-pi-ip>:3000"
 echo "  • Find Pi IP with: hostname -I"
 echo ""
-log_warn "Note: Make sure the Pi Audio Kiosk service is running before rebooting!"
+log_warn "Note: Make sure the SpectraBox service is running before rebooting!"
 EOF

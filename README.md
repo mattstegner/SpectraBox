@@ -1,4 +1,4 @@
-# Pi Audio Kiosk
+# SpectraBox
 
 A spectrum analyzer and audio visualization application designed to run on Raspberry Pi and other platforms.
 
@@ -91,7 +91,7 @@ node server.js
 
 ## Network Access
 
-The Pi Audio Kiosk supports network accessibility, allowing you to access the spectrum analyzer from other devices on your local network.
+SpectraBox supports network accessibility, allowing you to access the spectrum analyzer from other devices on your local network.
 
 ### Network Tab
 

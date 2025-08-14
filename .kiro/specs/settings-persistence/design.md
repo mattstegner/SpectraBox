@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Settings Persistence system extends the existing pi-audio-kiosk application to automatically save and restore all user interface settings. The system integrates with the existing PreferencesService to store UI-specific settings alongside system preferences, providing a seamless user experience where all customizations are preserved across application sessions.
+The Settings Persistence system extends the existing SpectraBox application to automatically save and restore all user interface settings. The system integrates with the existing PreferencesService to store UI-specific settings alongside system preferences, providing a seamless user experience where all customizations are preserved across application sessions.
 
 ## Architecture
 
@@ -231,9 +231,9 @@ const UI_SETTINGS_SCHEMA = {
 ```javascript
 // Platform-specific paths (using existing PlatformDetection)
 const SETTINGS_PATHS = {
-  darwin: '~/.config/pi-audio-kiosk/preferences.json',
-  linux: '~/.config/pi-audio-kiosk/preferences.json',
-  win32: '%APPDATA%/pi-audio-kiosk/preferences.json'
+  darwin: '~/.config/spectrabox/preferences.json',
+  linux: '~/.config/spectrabox/preferences.json',
+  win32: '%APPDATA%/spectrabox/preferences.json'
 };
 ```
 

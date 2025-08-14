@@ -160,7 +160,7 @@ app.get("/api/health", (req, res) => {
   const metrics = performanceMonitor.getAllMetrics();
   res.json({
     status: "OK",
-    message: "Pi Audio Kiosk server is running",
+    message: "SpectraBox server is running",
     performance: {
       uptime: `${metrics.uptime.uptimeHours}h`,
       memory: `${metrics.memory.rss}MB`,
@@ -852,7 +852,7 @@ if (require.main === module) {
             .createServer(httpsOptions, app)
             .listen(PORT, HOST, () => {
               logger.info(
-                `Pi Audio Kiosk HTTPS server running on ${HOST}:${PORT}`
+                `SpectraBox HTTPS server running on ${HOST}:${PORT}`
               );
               logger.info(`Local access: https://localhost:${PORT}`);
               if (HOST === "0.0.0.0") {
@@ -902,7 +902,7 @@ if (require.main === module) {
         );
 
         server = app.listen(PORT, HOST, () => {
-          logger.info(`Pi Audio Kiosk HTTP server running on ${HOST}:${PORT}`);
+          logger.info(`SpectraBox HTTP server running on ${HOST}:${PORT}`);
           logger.info(`Local access: http://localhost:${PORT}`);
           if (HOST === "0.0.0.0") {
             logger.info(`Network access: http://<your-ip>:${PORT}`);
@@ -1106,7 +1106,7 @@ if (require.main === module) {
 
     const server = app.listen(defaultPort, defaultHost, () => {
       logger.info(
-        `Pi Audio Kiosk server running on ${defaultHost}:${defaultPort} (default config)`
+        `SpectraBox server running on ${defaultHost}:${defaultPort} (default config)`
       );
       logger.info(`Local access: http://localhost:${defaultPort}`);
       if (defaultHost === "0.0.0.0") {

@@ -3,7 +3,7 @@ const path = require('path');
 const os = require('os');
 
 // Mock the platform detection module
-const mockConfigPath = path.join(os.tmpdir(), 'test-pi-audio-kiosk');
+const mockConfigPath = path.join(os.tmpdir(), 'test-spectrabox');
 jest.mock('../utils/platformDetection', () => ({
   getConfigPath: jest.fn(() => mockConfigPath)
 }));
@@ -17,7 +17,7 @@ describe('PreferencesService', () => {
 
   beforeEach(() => {
     preferencesService = new PreferencesService();
-    testConfigDir = path.join(os.tmpdir(), 'test-pi-audio-kiosk');
+    testConfigDir = path.join(os.tmpdir(), 'test-spectrabox');
     testPreferencesPath = path.join(testConfigDir, 'preferences.json');
   });
 

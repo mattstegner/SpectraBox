@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Pi Audio Kiosk - Startup Script
+ * SpectraBox - Startup Script
  * This script handles the startup sequence for the kiosk application
  */
 
@@ -29,7 +29,7 @@ const config = {
       '--autoplay-policy=no-user-gesture-required',
       '--allow-running-insecure-content',
       '--disable-web-security',
-      '--user-data-dir=/tmp/pi-audio-kiosk-chrome', // Required for --disable-web-security
+      '--user-data-dir=/tmp/spectrabox-chrome', // Required for --disable-web-security
       '--disable-features=VizDisplayCompositor',
       '--start-fullscreen',
       '--no-default-browser-check',
@@ -60,7 +60,7 @@ class KioskLauncher {
    */
   async start() {
     try {
-      logger.info('🚀 Starting Pi Audio Kiosk...');
+      logger.info('🚀 Starting SpectraBox...');
       logger.info(`Platform: ${PlatformDetection.getCurrentPlatform()}`);
       logger.info(`Raspberry Pi: ${PlatformDetection.isRaspberryPi()}`);
 
@@ -92,10 +92,10 @@ class KioskLauncher {
         }
       }
 
-      logger.info('✅ Pi Audio Kiosk started successfully');
+      logger.info('✅ SpectraBox started successfully');
 
     } catch (error) {
-      logger.error('❌ Failed to start Pi Audio Kiosk', error);
+      logger.error('❌ Failed to start SpectraBox', error);
       await this.shutdown();
       process.exit(1);
     }
@@ -411,7 +411,7 @@ class KioskLauncher {
     }
 
     this.isShuttingDown = true;
-    logger.info('Shutting down Pi Audio Kiosk...');
+    logger.info('Shutting down SpectraBox...');
 
     // Close browser first
     if (this.browserProcess && !this.browserProcess.killed) {

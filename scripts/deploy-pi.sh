@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# Pi Audio Kiosk Deployment Script for Raspberry Pi
+# SpectraBox Deployment Script for Raspberry Pi
 # This script sets up the application for production deployment
 
 set -e  # Exit on any error
 
-echo "🚀 Pi Audio Kiosk Deployment Script"
+echo "🚀 SpectraBox Deployment Script"
 echo "=================================="
 
 # Configuration
-APP_NAME="pi-audio-kiosk"
+APP_NAME="spectrabox"
 APP_USER="pi"
-APP_DIR="/home/pi/pi-audio-kiosk"
-SERVICE_FILE="pi-audio-kiosk.service"
+APP_DIR="/home/pi/spectrabox"
+SERVICE_FILE="spectrabox.service"
 NODE_VERSION="18"
 
 # Colors for output
@@ -88,8 +88,8 @@ sudo systemctl enable "$APP_NAME"
 
 # Step 8: Create log directory
 log_info "Creating log directory..."
-sudo mkdir -p /var/log/pi-audio-kiosk
-sudo chown $APP_USER:$APP_USER /var/log/pi-audio-kiosk
+sudo mkdir -p /var/log/spectrabox
+sudo chown $APP_USER:$APP_USER /var/log/spectrabox
 
 # Step 9: Set proper permissions
 log_info "Setting file permissions..."

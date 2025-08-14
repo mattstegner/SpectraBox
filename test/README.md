@@ -1,6 +1,6 @@
 # Comprehensive Test Suite Documentation
 
-This directory contains a complete test suite for the Pi Audio Kiosk application, covering all requirements and providing multiple testing approaches.
+This directory contains a complete test suite for the SpectraBox application, covering all requirements and providing multiple testing approaches.
 
 ## Test Structure
 

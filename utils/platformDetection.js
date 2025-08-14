@@ -83,13 +83,13 @@ class PlatformDetection {
 
     switch (platform) {
     case 'darwin':
-      return path.join(homeDir, 'Library', 'Application Support', 'pi-audio-kiosk');
+      return path.join(homeDir, 'Library', 'Application Support', 'spectrabox');
     case 'linux':
-      return path.join(homeDir, '.config', 'pi-audio-kiosk');
+      return path.join(homeDir, '.config', 'spectrabox');
     case 'win32':
-      return path.join(homeDir, 'AppData', 'Roaming', 'pi-audio-kiosk');
+      return path.join(homeDir, 'AppData', 'Roaming', 'spectrabox');
     default:
-      return path.join(homeDir, '.pi-audio-kiosk');
+      return path.join(homeDir, '.spectrabox');
     }
   }
 

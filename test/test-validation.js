@@ -33,7 +33,7 @@ class TestValidator {
 
   async loadRequirements() {
     try {
-      const requirementsPath = path.join(process.cwd(), '.kiro/specs/pi-audio-kiosk/requirements.md');
+      const requirementsPath = path.join(process.cwd(), '.kiro/specs/spectrabox/requirements.md');
       const content = await fs.readFile(requirementsPath, 'utf8');
       
       // Extract requirements from markdown

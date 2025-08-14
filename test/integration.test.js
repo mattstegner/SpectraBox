@@ -11,7 +11,7 @@ describe('Spectrum Analyzer Integration', () => {
       const response = await request(app).get('/');
       expect(response.status).toBe(200);
       expect(response.headers['content-type']).toMatch(/text\/html/);
-      expect(response.text).toContain('Pi Audio Kiosk - Spectrum Analyzer');
+      expect(response.text).toContain('Stereo Spectrum Analyzer');
       expect(response.text).toContain('spectrum-analyzer.js');
       expect(response.text).toContain('meters.js');
     });
@@ -36,7 +36,7 @@ describe('Spectrum Analyzer Integration', () => {
       const response = await request(app).get('/css/styles.css');
       expect(response.status).toBe(200);
       expect(response.headers['content-type']).toMatch(/text\/css/);
-      expect(response.text).toContain('Pi Audio Kiosk Styles');
+      expect(response.text).toContain('SpectraBox Styles');
     });
   });
 
