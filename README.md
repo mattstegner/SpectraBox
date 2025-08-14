@@ -1,124 +1,184 @@
 # SpectraBox
 
-A spectrum analyzer and audio visualization application designed to run on Raspberry Pi and other platforms.
+A real-time spectrum analyzer and audio visualization application designed to run on Raspberry Pi and other platforms. SpectraBox provides professional-grade audio analysis tools through a modern web interface, perfect for audio engineers, musicians, and enthusiasts.
 
-## Avoiding Microphone Permission Dialogs
+## Features
 
-The browser's microphone permission dialog is a security feature that appears when a website requests access to the microphone. There are several ways to avoid or minimize these prompts:
+- **Real-time stereo spectrum analysis** with customizable frequency ranges
+- **Peak and RMS level meters** for accurate audio monitoring
+- **Phase correlation meter** for stereo field analysis
+- **Multiple audio input device support** with automatic device detection
+- **Persistent user preferences** that save automatically
+- **Network accessibility** for remote access from any device
+- **Kiosk mode support** for dedicated displays and installations
+- **Comprehensive settings interface** with tabbed organization
+- **Professional-grade visualization** with smooth, responsive displays
 
-### Option 1: Use HTTPS with SSL Certificates (Recommended)
+## Quick Installation
 
-The most effective approach is to serve your application over HTTPS. Browsers can store permissions persistently for HTTPS sites but typically reset permissions for HTTP sites when the browser is closed.
+### For Raspberry Pi (Recommended)
 
-1. Generate SSL certificates:
-
-```bash
-node generate-ssl.js
-```
-
-2. Start the server normally:
-
-```bash
-node server.js
-```
-
-The server will automatically detect the SSL certificates and use HTTPS.
-
-### Option 2: Browser Command Line Flags
-
-For development or kiosk environments, you can start Chrome/Chromium with special flags:
-
-#### Chrome/Chromium:
+The easiest way to get SpectraBox running on a Raspberry Pi is using our automated deployment script:
 
 ```bash
-# For macOS
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --auto-accept-camera-and-microphone-capture
-
-# For Linux
-chromium-browser --auto-accept-camera-and-microphone-capture
-
-# For Windows
-"C:\Program Files\Google\Chrome\Application\chrome.exe" --auto-accept-camera-and-microphone-capture
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh | bash
 ```
 
-#### For Raspberry Pi Kiosk Mode:
+This single command will:
+- Install all required dependencies (Node.js, audio libraries, browser)
+- Set up the SpectraBox application
+- Configure automatic startup and kiosk mode
+- Generate SSL certificates for secure access
+- Start the service and make it available on your network
 
-Add these flags to your kiosk startup script:
+**Requirements:**
+- Raspberry Pi 3B+ or newer (Pi 4 with 2GB+ RAM recommended)
+- Raspberry Pi OS (32-bit or 64-bit)
+- Internet connection
+- Run as the `pi` user (not root)
 
+After installation, access SpectraBox at:
+- **Local**: `https://localhost:3000`
+- **Network**: `https://your-pi-ip:3000`
+
+### For Development or Other Platforms
+
+For development or installation on other platforms:
+
+1. **Clone the repository:**
 ```bash
-chromium-browser --kiosk --auto-accept-camera-and-microphone-capture http://localhost:3000
+git clone https://github.com/mattstegner/SpectraBox.git
+cd SpectraBox
 ```
 
-### Option 3: Electron Application
-
-For a completely standalone application without permission dialogs, consider packaging the application with Electron, which can be configured to bypass permission prompts.
-
-## Running the Application
-
-1. Install dependencies:
-
+2. **Install dependencies:**
 ```bash
 npm install
 ```
 
-2. Generate SSL certificates (optional but recommended):
-
+3. **Generate SSL certificates (recommended):**
 ```bash
 node generate-ssl.js
 ```
 
-3. Start the server:
-
+4. **Start the server:**
 ```bash
 node server.js
 ```
 
-4. Open in your browser:
-   - HTTPS mode: https://localhost:3000
-   - HTTP mode: http://localhost:3000
+5. **Open in your browser:**
+   - HTTPS: `https://localhost:3000`
+   - HTTP: `http://localhost:3000`
 
-## Features
+## Complete Installation Guide
 
-- Real-time stereo spectrum analysis
-- Peak and RMS level meters
-- Phase correlation meter
-- Adjustable frequency range and display settings
-- Multiple audio input device support
-- Persistent user preferences
-- Network accessibility for remote access
-- Kiosk mode support for dedicated displays
-- Comprehensive settings interface with tabbed organization
+For detailed installation instructions, configuration options, troubleshooting, and advanced setup, see the **[DEPLOYMENT.md](DEPLOYMENT.md)** file.
+
+The deployment guide includes:
+- **Step-by-step manual installation** for custom setups
+- **Configuration options** for different environments
+- **Kiosk mode setup** for dedicated displays
+- **Network configuration** for remote access
+- **Troubleshooting guide** for common issues
+- **Security considerations** and SSL setup
+- **Performance optimization** for Raspberry Pi
+- **Backup and recovery** procedures
+- **Microphone permission management** for browsers
 
 ## Network Access
 
-SpectraBox supports network accessibility, allowing you to access the spectrum analyzer from other devices on your local network.
+SpectraBox is designed for network accessibility, allowing you to:
 
-### Network Tab
+- **Access from any device** on your local network
+- **Use tablets or phones** as remote displays
+- **Monitor audio** from a different room
+- **Share analysis** with multiple users simultaneously
 
-The application includes a dedicated **Network** tab in the settings panel that provides:
+### Network Configuration
 
-- **Network Status**: Shows whether the server is accessible from the network or local-only
-- **Server Configuration**: Displays current host, port, and binding settings
-- **Access Information**: Provides URLs for local and network access
-- **Kiosk Mode Status**: Indicates if kiosk mode is enabled
+By default, SpectraBox binds to `0.0.0.0:3000`, making it accessible from any device on your network:
 
-### Configuration
+- **Local access**: `https://localhost:3000`
+- **Network access**: `https://your-device-ip:3000`
 
-By default, the server binds to `0.0.0.0:3000`, making it accessible from any device on your network:
-
-- **Local access**: `http://localhost:3000`
-- **Network access**: `http://<your-ip>:3000`
-
-To find your device's IP address:
-
-- **Linux/Raspberry Pi**: `hostname -I`
+Find your device's IP address:
+- **Raspberry Pi/Linux**: `hostname -I`
 - **macOS**: `ifconfig | grep "inet "`
 - **Windows**: `ipconfig`
 
-### Security Considerations
+### Network Tab
 
-When network access is enabled, any device on your local network can access the spectrum analyzer. For security:
+The application includes a dedicated **Network** tab in the settings that shows:
+- Current network status and accessibility
+- Server configuration details
+- Access URLs for local and network connections
+- Kiosk mode status
 
-- The server only accepts connections from your local network
-- No authentication is required for local network access
-- Consider firewall settings if needed
+## Audio Input Support
+
+SpectraBox supports a wide range of audio input devices:
+
+- **USB microphones** and audio interfaces
+- **Built-in microphones** on supported devices
+- **Professional audio interfaces** with multiple channels
+- **Bluetooth audio devices** (with proper system configuration)
+
+The application automatically detects available audio devices and allows you to select the preferred input source through the settings interface.
+
+## Browser Compatibility
+
+SpectraBox works with modern web browsers that support the Web Audio API:
+
+- **Chrome/Chromium** (recommended)
+- **Firefox**
+- **Safari** (macOS/iOS)
+- **Edge** (Windows)
+
+For the best experience, especially on Raspberry Pi, Chrome/Chromium is recommended due to optimized performance and full feature support.
+
+## Use Cases
+
+SpectraBox is perfect for:
+
+- **Live sound monitoring** during performances or recordings
+- **Room acoustics analysis** for audio setup optimization
+- **Audio equipment testing** and calibration
+- **Educational demonstrations** of audio concepts
+- **Broadcast monitoring** for radio and streaming
+- **Home studio monitoring** for music production
+- **Audio troubleshooting** and system diagnostics
+
+## System Requirements
+
+### Minimum Requirements
+- **CPU**: ARM Cortex-A53 (Raspberry Pi 3B+) or equivalent x86/x64
+- **RAM**: 1GB (2GB+ recommended)
+- **Storage**: 2GB free space
+- **Network**: WiFi or Ethernet connection
+- **Audio**: USB microphone or audio interface
+
+### Recommended Setup
+- **Raspberry Pi 4** with 2GB+ RAM
+- **Class 10 SD card** or USB 3.0 storage
+- **Quality USB audio interface** for professional use
+- **Dedicated display** for kiosk mode installations
+- **Reliable network connection** for remote access
+
+## Support and Documentation
+
+- **Installation Guide**: See [DEPLOYMENT.md](DEPLOYMENT.md) for complete setup instructions
+- **Troubleshooting**: Check the deployment guide for common issues and solutions
+- **GitHub Issues**: Report bugs or request features on the GitHub repository
+- **Network Testing**: Use the included network test script for connectivity verification
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit pull requests, report bugs, or suggest new features through the GitHub repository.
+
+---
+
+**Ready to get started?** Run the quick installation command above, or check out the [DEPLOYMENT.md](DEPLOYMENT.md) file for detailed setup instructions.
