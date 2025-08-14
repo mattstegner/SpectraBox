@@ -1,6 +1,6 @@
 [Unit]
 Description=Pi Audio Kiosk - Web-based Audio Device Management
-Documentation=https://github.com/your-repo/pi-audio-kiosk
+Documentation=https://github.com/mattstegner/SpectraBox
 After=network.target sound.target
 Wants=network.target
 

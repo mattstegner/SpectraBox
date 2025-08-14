@@ -53,7 +53,7 @@ sudo apt install -y alsa-utils pulseaudio pulseaudio-utils
 
 Clone and set up the application:
 ```bash
-git clone <your-repo-url> /home/pi/pi-audio-kiosk
+git clone https://github.com/mattstegner/SpectraBox.git /home/pi/pi-audio-kiosk
 cd /home/pi/pi-audio-kiosk
 npm ci --only=production
 ```
