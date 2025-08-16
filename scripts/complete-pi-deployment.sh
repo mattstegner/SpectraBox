@@ -236,7 +236,7 @@ log_step "8. Setting up systemd service..."
 
 # Set proper permissions
 log_info "Setting file permissions..."
-chown -R $APP_USER:$APP_USER "$APP_DIR"
+sudo chown -R $APP_USER:$APP_USER "$APP_DIR"
 chmod +x "$APP_DIR/scripts/"*.sh 2>/dev/null || true
 chmod +x "$APP_DIR/start-kiosk.js" 2>/dev/null || true
 
