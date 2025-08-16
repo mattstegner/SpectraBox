@@ -20,11 +20,19 @@ A real-time spectrum analyzer and audio visualization application designed to ru
 
 The easiest way to get SpectraBox running on a Raspberry Pi is using our automated deployment script:
 
+**Method 1: Direct Installation (fastest)**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh | bash
 ```
 
-This single command will:
+**Method 2: Alternative Installation (if you encounter download issues)**
+```bash
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install-spectrabox.sh
+chmod +x install-spectrabox.sh
+./install-spectrabox.sh
+```
+
+Both methods will:
 - Install all required dependencies (Node.js, audio libraries, browser)
 - Set up the SpectraBox application
 - Configure automatic startup and kiosk mode
@@ -32,10 +40,13 @@ This single command will:
 - Start the service and make it available on your network
 
 **Requirements:**
-- Raspberry Pi 3B+ or newer (Pi 4 with 2GB+ RAM recommended)
+- Raspberry Pi 4 or newer (Pi 4 with 2GB+ RAM recommended)
 - Raspberry Pi OS (32-bit or 64-bit)
 - Internet connection
 - Run as the `pi` user (not root)
+
+**Troubleshooting Installation Issues:**
+If you encounter errors like "cho: command not found" or "curl: (23) Failure writing output to destination", use Method 2 above, which downloads the script locally first to avoid piping issues.
 
 After installation, access SpectraBox at:
 - **Local**: `https://localhost:3000`

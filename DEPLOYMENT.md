@@ -16,12 +16,19 @@ This guide covers deploying the SpectraBox application to a Raspberry Pi for pro
 
 The easiest way to deploy SpectraBox is using the complete deployment script that handles everything from system setup to kiosk configuration:
 
-**Option 1: Direct deployment (recommended)**
+**Method 1: Direct deployment (fastest)**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh | bash
 ```
 
-**Option 2: Download and inspect first**
+**Method 2: Alternative installation (recommended for compatibility)**
+```bash
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install-spectrabox.sh
+chmod +x install-spectrabox.sh
+./install-spectrabox.sh
+```
+
+**Method 3: Download and inspect first**
 ```bash
 wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh
 chmod +x complete-pi-deployment.sh
@@ -44,6 +51,27 @@ This complete deployment script will:
 **Requirements:**
 - Run as the `pi` user (not root)
 - Internet connection for downloading packages and repository
+
+**Installation Method Comparison:**
+
+| Method | Pros | Cons | Best For |
+|--------|------|------|----------|
+| Method 1 (curl pipe) | Fastest, single command | May have compatibility issues on some systems | Most Debian/Ubuntu systems |
+| Method 2 (install-spectrabox.sh) | Most compatible, avoids piping issues | Requires two commands | Systems with curl/bash compatibility issues |
+| Method 3 (download first) | Can inspect before running | Manual process | Security-conscious users |
+
+**Troubleshooting Installation Issues:**
+
+If you encounter these common errors, use Method 2:
+- `bash: line 79: cho: command not found`
+- `curl: (23) Failure writing output to destination`
+- Script appears to hang or fail during download
+
+These issues are typically caused by:
+- Terminal encoding problems during curl piping
+- Network interruptions during download
+- Shell compatibility issues with certain Debian configurations
+- Permission problems with temporary file creation during piping
 
 ### Basic Deployment (Application Only)
 
@@ -297,6 +325,48 @@ The kiosk setup creates these files:
 - `~/.config/openbox/lxde-pi-rc.xml` - Emergency exit shortcut
 
 ## Troubleshooting
+
+### Installation Issues
+
+**"cho: command not found" error:**
+This error occurs when the deployment script gets corrupted during download via curl piping. 
+
+*Solution:* Use the alternative installation method:
+```bash
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install-spectrabox.sh
+chmod +x install-spectrabox.sh
+./install-spectrabox.sh
+```
+
+**"curl: (23) Failure writing output to destination" error:**
+This indicates curl cannot write the downloaded content, usually due to permission or disk space issues.
+
+*Solutions:*
+1. Check available disk space: `df -h`
+2. Ensure you have write permissions in the current directory
+3. Use the alternative installation method above
+4. Try downloading to a specific location: `curl -o script.sh [URL]`
+
+**Script hangs or fails during download:**
+Network interruptions or encoding issues can cause the script to fail.
+
+*Solutions:*
+1. Check internet connectivity: `ping google.com`
+2. Use wget instead of curl: `wget [URL]`
+3. Use the alternative installation method
+4. Download and run locally instead of piping
+
+**Permission denied errors:**
+Ensure you're running as the `pi` user, not root.
+
+*Solution:*
+```bash
+# Check current user
+whoami  # Should show 'pi'
+
+# If running as root, switch to pi user
+su - pi
+```
 
 ### Common Issues
 
