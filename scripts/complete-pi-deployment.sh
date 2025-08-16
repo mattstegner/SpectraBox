@@ -85,6 +85,28 @@ fi
 log_info "Starting complete deployment process..."
 
 # =============================================================================
+# PRELIMINARY CHECKS
+# =============================================================================
+log_step "Performing preliminary checks..."
+
+# Check available disk space (need at least 1GB)
+AVAILABLE_SPACE=$(df / | awk 'NR==2 {print $4}')
+if [ "$AVAILABLE_SPACE" -lt 1048576 ]; then
+    log_error "Insufficient disk space. Need at least 1GB free space."
+    log_info "Available: $(df -h / | awk 'NR==2 {print $4}')"
+    exit 1
+fi
+
+# Check internet connectivity
+if ! ping -c 1 google.com &> /dev/null; then
+    log_error "No internet connection detected. Please check your network."
+    exit 1
+fi
+
+log_info "✓ Disk space: $(df -h / | awk 'NR==2 {print $4}') available"
+log_info "✓ Internet connectivity: OK"
+
+# =============================================================================
 # STEP 1: System Update and Dependencies
 # =============================================================================
 log_step "1. Updating system packages..."
@@ -97,14 +119,32 @@ sudo apt upgrade -y
 log_step "2. Installing Node.js..."
 if ! command -v node &> /dev/null; then
     log_info "Installing Node.js ${NODE_VERSION}..."
-    curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | sudo -E bash -
-    sudo apt-get install -y nodejs
+    # Download to temp file first to avoid pipe issues
+    TEMP_SETUP=$(mktemp)
+    if curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" -o "$TEMP_SETUP"; then
+        sudo -E bash "$TEMP_SETUP"
+        rm -f "$TEMP_SETUP"
+        sudo apt-get install -y nodejs
+    else
+        log_error "Failed to download Node.js setup script"
+        rm -f "$TEMP_SETUP"
+        exit 1
+    fi
 else
     CURRENT_NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
     if [ "$CURRENT_NODE_VERSION" -lt "$NODE_VERSION" ]; then
         log_info "Upgrading Node.js from v$CURRENT_NODE_VERSION to v${NODE_VERSION}..."
-        curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | sudo -E bash -
-        sudo apt-get install -y nodejs
+        # Download to temp file first to avoid pipe issues
+        TEMP_SETUP=$(mktemp)
+        if curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" -o "$TEMP_SETUP"; then
+            sudo -E bash "$TEMP_SETUP"
+            rm -f "$TEMP_SETUP"
+            sudo apt-get install -y nodejs
+        else
+            log_error "Failed to download Node.js setup script"
+            rm -f "$TEMP_SETUP"
+            exit 1
+        fi
     else
         log_info "Node.js is already installed: $(node --version)"
     fi
