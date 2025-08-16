@@ -6,7 +6,16 @@
 # Usage: curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh | bash
 # Or: wget -O - https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh | bash
 
+# More lenient error handling - continue on non-critical errors
 set -e  # Exit on any error
+set +e  # Temporarily disable exit on error for compatibility checks
+
+# Ensure we have a proper shell environment
+export LANG=C
+export LC_ALL=C
+
+# Re-enable strict error handling for critical sections
+set -e
 
 echo "🚀 SpectraBox - Complete Deployment Script"
 echo "=========================================="
@@ -30,19 +39,24 @@ NC='\033[0m' # No Color
 
 # Helper functions
 log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    echo -e "${GREEN}[INFO]${NC} $1" 2>/dev/null || printf "[INFO] %s\n" "$1"
 }
 
 log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    echo -e "${YELLOW}[WARN]${NC} $1" 2>/dev/null || printf "[WARN] %s\n" "$1"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]${NC} $1" 2>/dev/null || printf "[ERROR] %s\n" "$1"
 }
 
 log_step() {
-    echo -e "${BLUE}[STEP]${NC} $1"
+    echo -e "${BLUE}[STEP]${NC} $1" 2>/dev/null || printf "[STEP] %s\n" "$1"
+}
+
+# Safe echo function to handle potential issues
+safe_echo() {
+    echo "$@" 2>/dev/null || printf "%s\n" "$*" 2>/dev/null || true
 }
 
 # Check if running as root
@@ -76,7 +90,8 @@ echo "  8. Configure kiosk mode"
 echo "  9. Start the application"
 echo ""
 read -p "Do you want to continue? (y/N): " -n 1 -r
-echo
+# Handle potential echo issues with multiple approaches
+{ echo ""; } 2>/dev/null || { printf "\n"; } 2>/dev/null || true
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     log_info "Installation cancelled."
     exit 0
