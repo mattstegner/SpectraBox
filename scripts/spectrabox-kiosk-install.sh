@@ -2,9 +2,11 @@
 # SpectraBox Kiosk Installer (Debian + Raspberry Pi OS)
 # - Installs Node.js
 # - Installs browser (Chromium/Chromium-browser; Firefox ESR fallback)
+# - Sets up PipeWire audio (no PulseAudio conflict)
 # - Clones SpectraBox
 # - Generates HTTPS certs (for persistent mic permissions)
 # - Creates systemd service
+# - Adds Chromium mic-allow policy for localhost
 # - Configures kiosk autostart
 # - Adapts automatically on Debian vs Raspberry Pi OS
 
@@ -54,14 +56,28 @@ apt-get upgrade -y
 apt-get install -y --no-install-recommends \
   ca-certificates curl wget git jq xdg-utils \
   xdotool unclutter \
-  alsa-utils pulseaudio pulseaudio-utils \
   libnss3 libatk1.0-0 libxss1 libasound2 \
-  openssl
-
+  alsa-utils openssl
 ok "System packages installed/updated"
 
 # ---------------------------------------------------------
-banner "2) Install Node.js ${NODE_MAJOR}.x (NodeSource if needed)"
+banner "2) Audio stack: PipeWire (avoid Pulse conflicts)"
+# Install PipeWire + WirePlumber and remove PulseAudio if present
+apt-get install -y --no-install-recommends \
+  pipewire-audio wireplumber libspa-0.2-bluetooth
+apt-get purge -y pulseaudio pulseaudio-utils || true
+
+# Ensure the kiosk user is in audio/video groups
+usermod -aG audio,video "$PI_USER" || true
+
+# Enable user services for PipeWire (make persistent even before first login)
+loginctl enable-linger "$PI_USER" || true
+sudo -u "$PI_USER" systemctl --user enable pipewire pipewire-pulse wireplumber || true
+# Don't try to --now here; it may fail without an active user session. Runtime wait happens in start-kiosk.sh.
+ok "PipeWire configured (Pulse removed if found)"
+
+# ---------------------------------------------------------
+banner "3) Install Node.js ${NODE_MAJOR}.x (NodeSource if needed)"
 if ! command -v node >/dev/null 2>&1 || ! node -v | grep -qE "^v${NODE_MAJOR}\."; then
   curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
   apt-get install -y nodejs
@@ -71,7 +87,7 @@ step "npm : $(npm -v 2>/dev/null || echo 'not found')"
 ok "Node.js ready"
 
 # ---------------------------------------------------------
-banner "3) Choose and install browser (Chromium/Firefox fallback)"
+banner "4) Choose and install browser (Chromium/Firefox fallback)"
 # CHANGE 1: package detection (chromium vs chromium-browser; firefox-esr fallback)
 pkg_exists() { apt-cache show "$1" 2>/dev/null | grep -q '^Package:'; }
 
@@ -92,13 +108,12 @@ BROWSER_BIN="$(command -v chromium || true)"
 BROWSER_BIN="${BROWSER_BIN:-$(command -v chromium-browser || true)}"
 BROWSER_BIN="${BROWSER_BIN:-$(command -v firefox-esr || true)}"
 [[ -n "$BROWSER_BIN" ]] || err "Unable to locate browser binary after install."
-
 step "Browser package: ${BROWSER_PKG}"
 step "Browser binary : ${BROWSER_BIN}"
 ok "Browser installed"
 
 # ---------------------------------------------------------
-banner "4) Clone or update SpectraBox repo"
+banner "5) Clone or update SpectraBox repo"
 if [[ -d "$APP_DIR/.git" ]]; then
   step "Repo exists, pulling latest..."
   sudo -u "$PI_USER" git -C "$APP_DIR" pull --ff-only
@@ -109,7 +124,7 @@ fi
 ok "Repository ready"
 
 # ---------------------------------------------------------
-banner "5) Install app dependencies (production)"
+banner "6) Install app dependencies (production)"
 cd "$APP_DIR"
 if [[ -f package-lock.json ]]; then
   sudo -u "$PI_USER" npm ci --only=production
@@ -119,7 +134,7 @@ fi
 ok "Node dependencies installed"
 
 # ---------------------------------------------------------
-banner "6) Generate HTTPS certs (for persistent mic permission)"
+banner "7) Generate HTTPS certs (for persistent mic permission)"
 CERT_DIR="$APP_DIR/certs"
 mkdir -p "$CERT_DIR"
 chown -R "$PI_USER:$PI_USER" "$CERT_DIR"
@@ -140,7 +155,7 @@ fi
 ok "TLS certificates ready"
 
 # ---------------------------------------------------------
-banner "7) Create systemd service for SpectraBox"
+banner "8) Create systemd service for SpectraBox"
 # Prefer npm start if defined; fallback to server.js
 EXEC_START=""
 if [[ -f package.json ]] && jq -e '.scripts.start' package.json >/dev/null 2>&1; then
@@ -190,7 +205,7 @@ systemctl --no-pager --full status "${SERVICE_NAME}" || true
 ok "Systemd service enabled & started"
 
 # ---------------------------------------------------------
-banner "8) Configure Desktop autologin / GUI boot (Pi OS if available)"
+banner "9) Configure Desktop autologin / GUI boot (Pi OS if available)"
 # CHANGE 2: guard raspi-config; Debian falls back to graphical.target
 if command -v raspi-config >/dev/null 2>&1; then
   raspi-config nonint do_boot_behaviour B4 || true   # Desktop autologin
@@ -201,7 +216,23 @@ else
 fi
 
 # ---------------------------------------------------------
-banner "9) Create kiosk launcher scripts & autostart entry"
+banner "10) Chromium policy: allow mic for localhost"
+install -d /etc/chromium/policies/managed /etc/opt/chrome/policies/managed
+cat >/etc/chromium/policies/managed/kiosk-mic.json <<'JSON'
+{
+  "AudioCaptureAllowed": true,
+  "AudioCaptureAllowedUrls": [
+    "https://localhost:3000",
+    "http://localhost:3000"
+  ]
+}
+JSON
+# Copy to Chrome path too (harmless if missing)
+cp /etc/chromium/policies/managed/kiosk-mic.json /etc/opt/chrome/policies/managed/kiosk-mic.json 2>/dev/null || true
+ok "Chromium policy installed"
+
+# ---------------------------------------------------------
+banner "11) Create kiosk launcher scripts & autostart entry"
 START_KIOSK="$PI_HOME/start-kiosk.sh"
 EXIT_KIOSK="$PI_HOME/exit-kiosk.sh"
 AUTOSTART_DIR="$PI_HOME/.config/autostart"
@@ -217,7 +248,7 @@ fi
 
 install -d -m 755 "$AUTOSTART_DIR" "$OPENBOX_DIR"
 
-# CHANGE 3: use the detected browser binary inside kiosk launcher
+# CHANGE 3: use the detected browser binary; wait for audio + server
 cat > "$START_KIOSK" <<EOS
 #!/usr/bin/env bash
 set -e
@@ -236,7 +267,17 @@ unclutter -idle 0.5 -root >/dev/null 2>&1 &
 URL="${URL}"
 BROWSER_BIN="${BROWSER_BIN}"
 
-# Wait for SpectraBox to respond (up to 60s) if health endpoint exists
+# ---- Wait for audio server (PipeWire or Pulse shim) ----
+for i in {1..20}; do
+  if command -v wpctl >/dev/null 2>&1; then
+    if wpctl status >/dev/null 2>&1; then break; fi
+  elif command -v pactl >/dev/null 2>&1; then
+    if pactl info >/dev/null 2>&1; then break; fi
+  fi
+  sleep 1
+done
+
+# ---- Wait for SpectraBox to respond (up to 60s) ----
 for i in {1..60}; do
   if command -v curl >/dev/null 2>&1 && curl -sk --max-time 1 "\${URL}/api/health" >/dev/null 2>&1; then
     break
@@ -246,6 +287,10 @@ done
 
 # Chromium vs Firefox flags
 if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
+  EXTRA_HTTP_FLAG=""
+  if [[ "\${URL}" =~ ^http:// ]]; then
+    EXTRA_HTTP_FLAG="--unsafely-treat-insecure-origin-as-secure=\${URL}"
+  fi
   exec "\${BROWSER_BIN}" \\
     --kiosk "\${URL}" \\
     --app="\${URL}" \\
@@ -258,7 +303,8 @@ if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
     --allow-running-insecure-content \\
     --disable-web-security \\
     --use-fake-ui-for-media-stream \\
-    --enable-features=HardwareMediaKeyHandling
+    --enable-features=HardwareMediaKeyHandling \\
+    \${EXTRA_HTTP_FLAG}
 else
   # Firefox ESR fallback
   exec "\${BROWSER_BIN}" \\
@@ -302,14 +348,14 @@ fi
 ok "Kiosk autostart configured"
 
 # ---------------------------------------------------------
-banner "10) Permissions & logs"
+banner "12) Permissions & logs"
 mkdir -p /var/log/spectrabox
 chown "$PI_USER:$PI_USER" /var/log/spectrabox
 chown -R "$PI_USER:$PI_USER" "$APP_DIR"
 ok "Ownership & log dir applied"
 
 # ---------------------------------------------------------
-banner "11) Quick health check"
+banner "13) Quick health check"
 if command -v curl >/dev/null 2>&1 && \
    (curl -sk "http://localhost:${PORT}/api/health" >/dev/null 2>&1 || \
     curl -sk "https://localhost:${PORT}/api/health" >/dev/null 2>&1); then
@@ -319,7 +365,7 @@ else
 fi
 
 # ---------------------------------------------------------
-banner "12) Final notes"
+banner "14) Final notes"
 echo "  • Service : ${SERVICE_NAME} — status with: sudo systemctl status ${SERVICE_NAME}"
 echo "  • App Dir : ${APP_DIR}"
 echo "  • URL     : ${URL}"
