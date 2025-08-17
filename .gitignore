@@ -111,3 +111,9 @@ dist
 # Application specific
 preferences.json
 *.backup
+
+# SSL certificates and private keys
+ssl/
+*.pem
+*.key
+*.crt
