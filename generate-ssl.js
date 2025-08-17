@@ -21,10 +21,10 @@ if (!fs.existsSync(sslDir)) {
 
 try {
     // Generate private key
-    execSync(`openssl genrsa -out ${path.join(sslDir, 'key.pem')} 2048`, { stdio: 'inherit' });
+    execSync(`openssl genrsa -out "${path.join(sslDir, 'key.pem')}" 2048`, { stdio: 'inherit' });
     
     // Generate certificate
-    execSync(`openssl req -new -x509 -key ${path.join(sslDir, 'key.pem')} -out ${path.join(sslDir, 'cert.pem')} -days 365 -subj "/C=US/ST=Local/L=Local/O=SpectraBox/CN=localhost"`, { stdio: 'inherit' });
+    execSync(`openssl req -new -x509 -key "${path.join(sslDir, 'key.pem')}" -out "${path.join(sslDir, 'cert.pem')}" -days 365 -subj "/C=US/ST=Local/L=Local/O=SpectraBox/CN=localhost"`, { stdio: 'inherit' });
     
     console.log('\n✅ SSL certificates generated successfully!');
     console.log('📁 Certificates saved to ssl/ directory');
