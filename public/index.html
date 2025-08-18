@@ -418,6 +418,50 @@
         color: #fff;
       }
 
+      /* Server Tab Styles */
+      .server-version-loading,
+      .update-status-idle,
+      .update-status-checking,
+      .update-status-available,
+      .update-status-current,
+      .update-status-error,
+      .repository-info {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        padding: 12px;
+        margin-top: 8px;
+        font-size: 13px;
+        color: #fff;
+      }
+
+      .update-status-available {
+        border-color: #00aa00;
+        background: rgba(0, 170, 0, 0.1);
+      }
+
+      .update-status-current {
+        border-color: #0080ff;
+        background: rgba(0, 128, 255, 0.1);
+      }
+
+      .update-status-error {
+        border-color: #cc4400;
+        background: rgba(204, 68, 0, 0.1);
+      }
+
+      .version-info {
+        font-family: "Courier New", monospace;
+        font-weight: bold;
+        color: #00ff00;
+      }
+
+      .update-info {
+        margin-top: 8px;
+        font-size: 12px;
+        opacity: 0.8;
+      }
+
       .network-status-item {
         display: flex;
         align-items: center;
@@ -556,6 +600,7 @@
           </button>
           <button class="settings-tab" data-tab="meters">Meters</button>
           <button class="settings-tab" data-tab="network">Network</button>
+          <button class="settings-tab" data-tab="server">Server</button>
         </div>
 
         <div class="settings-content">
@@ -884,6 +929,52 @@
               <button id="refreshNetworkBtn">Refresh Network Info</button>
             </div>
           </div>
+
+          <!-- Server Tab -->
+          <div class="settings-page" id="server-page">
+            <div class="setting-item">
+              <label>Current Version:</label>
+              <div id="currentVersionDisplay">
+                <div class="server-version-loading">
+                  Loading version information...
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <label>Update Status:</label>
+              <div id="updateStatusDisplay">
+                <div class="update-status-idle">
+                  Click "Check for Updates" to see if a newer version is available.
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <button id="checkUpdatesBtn">Check for Updates</button>
+              <button id="performUpdateBtn" disabled style="margin-left: 10px;">Update Server</button>
+            </div>
+
+            <div class="setting-item">
+              <label>Repository Information:</label>
+              <div id="repositoryInfoDisplay">
+                <div class="repository-info">
+                  <div class="config-item">
+                    <span class="config-label">Repository:</span>
+                    <span class="config-value">mattstegner/SpectraBox</span>
+                  </div>
+                  <div class="config-item">
+                    <span class="config-label">GitHub URL:</span>
+                    <span class="config-value">
+                      <a href="https://github.com/mattstegner/SpectraBox" target="_blank" style="color: #4a9eff;">
+                        https://github.com/mattstegner/SpectraBox
+                      </a>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -894,6 +985,7 @@
     <script src="js/meters.js"></script>
     <script src="js/spectrogram.js"></script>
     <script src="js/settings-persistence.js"></script>
+    <script src="js/server-management.js"></script>
     <script src="js/spectrum-analyzer-integration.js"></script>
 
     <!-- Uncomment the line below to run tests (check browser console for results) -->

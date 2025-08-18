@@ -10,6 +10,8 @@ const { PreferencesService } = require('./services/preferencesService');
 const PlatformDetection = require('./utils/platformDetection');
 const { logger } = require('./utils/logger');
 const PerformanceMonitor = require('./utils/performanceMonitor');
+const VersionManager = require('./utils/versionManager');
+const GitHubService = require('./services/githubService');
 
 const app = express();
 
@@ -40,6 +42,8 @@ if (process.env.NODE_ENV === 'production') {
 // Initialize other services
 const audioDeviceService = new AudioDeviceService();
 const performanceMonitor = new PerformanceMonitor();
+const versionManager = new VersionManager();
+const githubService = new GitHubService();
 
 // Set log level from environment variable
 logger.options.level = process.env.LOG_LEVEL || 'info';
@@ -168,6 +172,123 @@ app.get('/api/health', (req, res) => {
       errors: metrics.requests.totalErrors,
     },
   });
+});
+
+// GET /api/version - Return current application version
+app.get('/api/version', async (req, res) => {
+  try {
+    const currentVersion = await versionManager.getCurrentVersion();
+    const isVersionFileAvailable = await versionManager.isVersionFileAvailable();
+    
+    logger.debug('Version information retrieved', { 
+      version: currentVersion,
+      fileAvailable: isVersionFileAvailable 
+    });
+
+    res.json({
+      success: true,
+      version: currentVersion,
+      versionFile: {
+        available: isVersionFileAvailable,
+        path: versionManager.getVersionFilePath()
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error getting version information', error);
+
+    // Determine appropriate error code and message
+    let statusCode = 500;
+    let errorCode = 'VERSION_ERROR';
+    let userMessage = 'Failed to get version information';
+
+    if (error.code === 'EACCES') {
+      statusCode = 403;
+      errorCode = 'PERMISSION_DENIED';
+      userMessage = 'Permission denied accessing version file';
+    }
+
+    res.status(statusCode).json({
+      success: false,
+      error: errorCode,
+      message: userMessage,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      version: 'unknown',
+      versionFile: {
+        available: false,
+        path: versionManager.getVersionFilePath()
+      }
+    });
+  }
+});
+
+// GET /api/update/check - Check for available updates
+app.get('/api/update/check', async (req, res) => {
+  try {
+    // Get current version
+    const currentVersion = await versionManager.getCurrentVersion();
+    
+    logger.info('Checking for updates', { currentVersion });
+
+    // Check for updates from GitHub
+    const updateInfo = await githubService.checkForUpdates(currentVersion);
+    
+    logger.info('Update check completed', {
+      updateAvailable: updateInfo.updateAvailable,
+      localVersion: updateInfo.localVersion,
+      remoteVersion: updateInfo.remoteVersion
+    });
+
+    res.json({
+      success: true,
+      updateAvailable: updateInfo.updateAvailable,
+      currentVersion: updateInfo.localVersion,
+      latestVersion: updateInfo.remoteVersion,
+      updateInfo: {
+        comparisonMethod: updateInfo.comparisonMethod,
+        repositoryUrl: updateInfo.repositoryUrl,
+        lastChecked: updateInfo.lastChecked,
+        remoteInfo: updateInfo.remoteInfo
+      },
+      rateLimitInfo: updateInfo.rateLimitInfo
+    });
+  } catch (error) {
+    logger.error('Error checking for updates', error);
+
+    // Determine appropriate error code and message
+    let statusCode = 500;
+    let errorCode = 'UPDATE_CHECK_ERROR';
+    let userMessage = 'Failed to check for updates';
+
+    if (error.message.includes('rate limit')) {
+      statusCode = 429;
+      errorCode = 'RATE_LIMIT_EXCEEDED';
+      userMessage = 'GitHub API rate limit exceeded. Please try again later.';
+    } else if (error.message.includes('not found')) {
+      statusCode = 404;
+      errorCode = 'REPOSITORY_NOT_FOUND';
+      userMessage = 'Repository not found or not accessible';
+    } else if (error.message.includes('timed out')) {
+      statusCode = 408;
+      errorCode = 'REQUEST_TIMEOUT';
+      userMessage = 'Request to GitHub timed out. Please check your internet connection.';
+    } else if (error.message.includes('network') || error.message.includes('ENOTFOUND')) {
+      statusCode = 503;
+      errorCode = 'NETWORK_ERROR';
+      userMessage = 'Network error connecting to GitHub. Please check your internet connection.';
+    }
+
+    res.status(statusCode).json({
+      success: false,
+      error: errorCode,
+      message: userMessage,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      updateAvailable: false,
+      currentVersion: await versionManager.getCurrentVersion().catch(() => 'unknown'),
+      latestVersion: 'unknown',
+      rateLimitInfo: githubService.getRateLimitInfo()
+    });
+  }
 });
 
 // Performance metrics endpoint (for monitoring)
@@ -743,6 +864,8 @@ app.use('/api/*', (req, res) => {
     message: `The endpoint ${req.originalUrl} does not exist`,
     availableEndpoints: [
       '/api/health',
+      '/api/version',
+      '/api/update/check',
       '/api/audio-devices',
       '/api/preferences',
       '/api/preferences/ui',

@@ -41,6 +41,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (tabName === 'network') {
         // Load network info when Network tab is opened
         setTimeout(displayNetworkInfo, 100); // Small delay to ensure tab is visible
+      } else if (tabName === 'server') {
+        // Initialize server manager when Server tab is opened
+        setTimeout(() => {
+          if (window.serverManager && !window.serverManager.isInitialized) {
+            window.serverManager.initialize();
+          }
+        }, 100); // Small delay to ensure tab is visible
       }
     });
   });
