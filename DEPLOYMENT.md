@@ -18,14 +18,14 @@ The easiest way to deploy SpectraBox is using the complete deployment script tha
 
 **Method 1: Direct deployment (fastest)**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/quick-install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install.sh | sudo bash
 ```
 
 **Method 2: Alternative installation (recommended for compatibility)**
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/quick-install.sh
-chmod +x quick-install.sh
-./quick-install.sh
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install.sh
+chmod +x install.sh
+./install.sh
 ```
 
 **Method 3: Manual installation (for advanced users)**

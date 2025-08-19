@@ -23,14 +23,14 @@ The easiest way to get SpectraBox running on a Raspberry Pi is using our automat
 
 **Method 1: Direct Installation (fastest)**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/quick-install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install.sh | sudo bash
 ```
 
 **Method 2: Alternative Installation (if you encounter download issues)**
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/quick-install.sh
-chmod +x quick-install.sh
-./quick-install.sh
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install.sh
+chmod +x install.sh
+./install.sh
 ```
 
 **Method 3: Manual Installation (for advanced users)**
