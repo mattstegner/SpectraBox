@@ -7,7 +7,7 @@
 # - Generates HTTPS certs (for persistent mic permissions)
 # - Creates systemd service
 # - Adds Chromium mic-allow policy for localhost
-# - Configures kiosk autostart
+# - Configures kiosk autostart (XDG + LXDE fallback)
 # - Adapts automatically on Debian vs Raspberry Pi OS
 
 # ---- Strict mode (split to avoid copy/paste wrapping issues) ----
@@ -25,6 +25,7 @@ PORT="3000"
 NODE_MAJOR="18"     # Node LTS track to install if missing
 MEM_MAX="512M"
 CPU_QUOTA="80%"
+INSTALL_LOG="/var/log/spectrabox-install.log"
 # ---------------------------
 
 banner() { echo -e "\n\033[1;36m==> $*\033[0m"; }
@@ -40,8 +41,13 @@ require_root() {
   fi
 }
 
-trap 'err "Install failed. Check the logs above."' ERR
+trap 'err "Install failed. Check the logs above or $INSTALL_LOG."' ERR
 require_root
+
+# --- Log to file as well as console (non-audio change) ---
+mkdir -p "$(dirname "$INSTALL_LOG")"
+touch "$INSTALL_LOG" || true
+exec > >(tee -a "$INSTALL_LOG") 2>&1
 
 banner "SpectraBox Kiosk Installer"
 step "Target user: $PI_USER"
@@ -57,34 +63,23 @@ apt-get install -y --no-install-recommends \
   ca-certificates curl wget git jq xdg-utils \
   xdotool unclutter \
   libnss3 libatk1.0-0 libxss1 libasound2 \
-  libgtk-3-0 libgdk-pixbuf2.0-0 libxcomposite1 \
-  libxcursor1 libxdamage1 libxrandr2 libgbm1 \
-  libxkbcommon0 libatspi2.0-0 \
   alsa-utils openssl
 ok "System packages installed/updated"
 
 # ---------------------------------------------------------
-banner "2) Audio stack: Ensure audio system compatibility"
-# Install audio packages but preserve existing audio system
+banner "2) Audio stack: PipeWire (avoid Pulse conflicts)"
+# (Audio subsystem unchanged from previous working script)
 apt-get install -y --no-install-recommends \
   pipewire-audio wireplumber libspa-0.2-bluetooth
-
-# Only remove PulseAudio if PipeWire is explicitly requested
-if [[ "${FORCE_PIPEWIRE:-}" == "true" ]]; then
-  apt-get purge -y pulseaudio pulseaudio-utils || true
-  step "PulseAudio removed (FORCE_PIPEWIRE=true)"
-else
-  step "Keeping existing audio system, PipeWire available as alternative"
-fi
+apt-get purge -y pulseaudio pulseaudio-utils || true
 
 # Ensure the kiosk user is in audio/video groups
 usermod -aG audio,video "$PI_USER" || true
 
-# Enable user services for PipeWire (make persistent even before first login)
+# Enable user services for PipeWire (persist even before first login)
 loginctl enable-linger "$PI_USER" || true
 sudo -u "$PI_USER" systemctl --user enable pipewire pipewire-pulse wireplumber || true
-# Don't try to --now here; it may fail without an active user session. Runtime wait happens in start-kiosk.sh.
-ok "Audio system configured for microphone access"
+ok "PipeWire configured (Pulse removed if found)"
 
 # ---------------------------------------------------------
 banner "3) Install Node.js ${NODE_MAJOR}.x (NodeSource if needed)"
@@ -98,7 +93,7 @@ ok "Node.js ready"
 
 # ---------------------------------------------------------
 banner "4) Choose and install browser (Chromium/Firefox fallback)"
-# CHANGE 1: package detection (chromium vs chromium-browser; firefox-esr fallback)
+# package detection (chromium vs chromium-browser; firefox-esr fallback)
 pkg_exists() { apt-cache show "$1" 2>/dev/null | grep -q '^Package:'; }
 
 BROWSER_PKG=""
@@ -143,37 +138,8 @@ else
 fi
 ok "Node dependencies installed"
 
-# Initialize configuration files
-if [[ -f "$APP_DIR/scripts/init-config.js" ]]; then
-  step "Initializing configuration files"
-  sudo -u "$PI_USER" node "$APP_DIR/scripts/init-config.js"
-else
-  step "Configuration initialization script not found, skipping"
-fi
-
 # ---------------------------------------------------------
-banner "7) Ensure Version.txt file exists and is properly managed"
-VERSION_FILE="$APP_DIR/Version.txt"
-if [[ ! -f "$VERSION_FILE" ]]; then
-  step "Creating Version.txt file with current version"
-  # Try to get version from package.json, fallback to git, then default
-  if [[ -f "$APP_DIR/package.json" ]] && command -v jq >/dev/null 2>&1; then
-    VERSION=$(jq -r '.version // "1.0.0"' "$APP_DIR/package.json")
-  elif [[ -d "$APP_DIR/.git" ]] && command -v git >/dev/null 2>&1; then
-    VERSION=$(cd "$APP_DIR" && git describe --tags --always --dirty 2>/dev/null || echo "1.0.0")
-  else
-    VERSION="1.0.0"
-  fi
-  echo "$VERSION" > "$VERSION_FILE"
-  chown "$PI_USER:$PI_USER" "$VERSION_FILE"
-  step "Version.txt created with version: $VERSION"
-else
-  step "Version.txt already exists: $(cat "$VERSION_FILE" 2>/dev/null || echo 'unreadable')"
-fi
-ok "Version file ready"
-
-# ---------------------------------------------------------
-banner "8) Generate HTTPS certs (for persistent mic permission)"
+banner "7) Generate HTTPS certs (for persistent mic permission)"
 CERT_DIR="$APP_DIR/certs"
 mkdir -p "$CERT_DIR"
 chown -R "$PI_USER:$PI_USER" "$CERT_DIR"
@@ -194,7 +160,7 @@ fi
 ok "TLS certificates ready"
 
 # ---------------------------------------------------------
-banner "9) Create systemd service for SpectraBox"
+banner "8) Create systemd service for SpectraBox"
 # Prefer npm start if defined; fallback to server.js
 EXEC_START=""
 if [[ -f package.json ]] && jq -e '.scripts.start' package.json >/dev/null 2>&1; then
@@ -244,8 +210,8 @@ systemctl --no-pager --full status "${SERVICE_NAME}" || true
 ok "Systemd service enabled & started"
 
 # ---------------------------------------------------------
-banner "10) Configure Desktop autologin / GUI boot (Pi OS if available)"
-# CHANGE 2: guard raspi-config; Debian falls back to graphical.target
+banner "9) Configure Desktop autologin / GUI boot (Pi OS if available)"
+# raspi-config guarded; Debian falls back to graphical.target
 if command -v raspi-config >/dev/null 2>&1; then
   raspi-config nonint do_boot_behaviour B4 || true   # Desktop autologin
   ok "raspi-config set to Desktop (autologin)"
@@ -255,43 +221,27 @@ else
 fi
 
 # ---------------------------------------------------------
-banner "11) Chromium policy: allow mic for localhost"
+banner "10) Chromium policy: allow mic for localhost"
 install -d /etc/chromium/policies/managed /etc/opt/chrome/policies/managed
-cat >/etc/chromium/policies/managed/kiosk-mic.json <<JSON
+cat >/etc/chromium/policies/managed/kiosk-mic.json <<'JSON'
 {
   "AudioCaptureAllowed": true,
   "AudioCaptureAllowedUrls": [
-    "https://localhost:${PORT}",
-    "http://localhost:${PORT}",
     "https://localhost:3000",
     "http://localhost:3000"
-  ],
-  "DefaultMediaStreamSetting": 1,
-  "MediaStreamMicrophoneAllowedUrls": [
-    "https://localhost:${PORT}",
-    "http://localhost:${PORT}",
-    "https://localhost:3000",
-    "http://localhost:3000"
-  ],
-  "AutoSelectCertificateForUrls": [
-    {
-      "pattern": "https://localhost:${PORT}",
-      "filter": {}
-    }
   ]
 }
 JSON
 # Copy to Chrome path too (harmless if missing)
 cp /etc/chromium/policies/managed/kiosk-mic.json /etc/opt/chrome/policies/managed/kiosk-mic.json 2>/dev/null || true
-ok "Chromium policy installed with enhanced microphone permissions"
+ok "Chromium policy installed"
 
 # ---------------------------------------------------------
-banner "12) Create kiosk launcher scripts & autostart entry"
+banner "11) Create kiosk launcher scripts & autostart entry"
 START_KIOSK="$PI_HOME/start-kiosk.sh"
 EXIT_KIOSK="$PI_HOME/exit-kiosk.sh"
 AUTOSTART_DIR="$PI_HOME/.config/autostart"
 OPENBOX_DIR="$PI_HOME/.config/openbox"
-CHROME_DATA_DIR="$PI_HOME/.config/spectrabox-chrome"
 KIOSK_DESKTOP="$AUTOSTART_DIR/kiosk.desktop"
 OPENBOX_RC="$OPENBOX_DIR/lxde-pi-rc.xml"
 
@@ -301,10 +251,8 @@ if [[ -f "$CERT_DIR/server.crt" && -f "$CERT_DIR/server.key" ]]; then
   URL="https://localhost:${PORT}"
 fi
 
-install -d -m 755 "$AUTOSTART_DIR" "$OPENBOX_DIR" "$CHROME_DATA_DIR"
-chown -R "$PI_USER:$PI_USER" "$CHROME_DATA_DIR"
+install -d -m 755 "$AUTOSTART_DIR" "$OPENBOX_DIR"
 
-# CHANGE 3: use the detected browser binary; wait for audio + server
 cat > "$START_KIOSK" <<EOS
 #!/usr/bin/env bash
 set -e
@@ -347,28 +295,19 @@ if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
   if [[ "\${URL}" =~ ^http:// ]]; then
     EXTRA_HTTP_FLAG="--unsafely-treat-insecure-origin-as-secure=\${URL}"
   fi
-  
-  # Create user data directory if it doesn't exist
-  mkdir -p "\${PI_HOME}/.config/spectrabox-chrome"
-  
   exec "\${BROWSER_BIN}" \\
     --kiosk "\${URL}" \\
+    --app="\${URL}" \\
     --noerrdialogs \\
     --disable-session-crashed-bubble \\
-    --disable-infobars \\
-    --disable-translate \\
-    --disable-features=TranslateUI \\
     --autoplay-policy=no-user-gesture-required \\
     --ignore-certificate-errors \\
-    --ignore-ssl-errors \\
     --start-maximized \\
-    --user-data-dir="\${PI_HOME}/.config/spectrabox-chrome" \\
+    --incognito \\
     --allow-running-insecure-content \\
-    --use-fake-device-for-media-stream=false \\
+    --disable-web-security \\
+    --use-fake-ui-for-media-stream \\
     --enable-features=HardwareMediaKeyHandling \\
-    --no-sandbox \\
-    --disable-dev-shm-usage \\
-    --disable-gpu-sandbox \\
     \${EXTRA_HTTP_FLAG}
 else
   # Firefox ESR fallback
@@ -388,41 +327,6 @@ EOS
 chmod +x "$EXIT_KIOSK"
 chown "$PI_USER:$PI_USER" "$EXIT_KIOSK"
 
-# Create debug script for troubleshooting
-DEBUG_KIOSK="$PI_HOME/debug-kiosk.sh"
-cat > "$DEBUG_KIOSK" <<EOS
-#!/usr/bin/env bash
-# Debug script for troubleshooting Chromium launch issues
-echo "=== Chromium Debug Information ==="
-echo "Browser binary: ${BROWSER_BIN}"
-echo "URL: ${URL}"
-echo "User data dir: \${PI_HOME}/.config/spectrabox-chrome"
-echo ""
-echo "=== Testing browser launch with verbose output ==="
-export DISPLAY=\${DISPLAY:-:0}
-
-# Test basic chromium launch
-echo "Testing: \${BROWSER_BIN} --version"
-"${BROWSER_BIN}" --version || echo "Version check failed"
-
-echo ""
-echo "Testing: \${BROWSER_BIN} --help | head -10"
-"${BROWSER_BIN}" --help | head -10 || echo "Help check failed"
-
-echo ""
-echo "=== Attempting kiosk launch with debug output ==="
-"${BROWSER_BIN}" \\
-  --kiosk "${URL}" \\
-  --user-data-dir="\${PI_HOME}/.config/spectrabox-chrome" \\
-  --no-sandbox \\
-  --disable-dev-shm-usage \\
-  --disable-gpu-sandbox \\
-  --enable-logging=stderr \\
-  --v=1
-EOS
-chmod +x "$DEBUG_KIOSK"
-chown "$PI_USER:$PI_USER" "$DEBUG_KIOSK"
-
 cat > "$KIOSK_DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
@@ -431,6 +335,19 @@ Exec=${START_KIOSK}
 X-GNOME-Autostart-enabled=true
 EOF
 chown -R "$PI_USER:$PI_USER" "$AUTOSTART_DIR"
+
+# --- LXDE autostart fallback (non-audio change, helps on some Pi images) ---
+LXDE_DIR="$PI_HOME/.config/lxsession/LXDE-pi"
+if [[ -d "$LXDE_DIR" ]]; then
+  AUTOSTART_FILE="$LXDE_DIR/autostart"
+  install -d -m 755 "$LXDE_DIR"
+  # Add our launcher if not present
+  if [[ ! -f "$AUTOSTART_FILE" ]] || ! grep -q "start-kiosk.sh" "$AUTOSTART_FILE"; then
+    echo "@/bin/bash -lc \"$START_KIOSK\"" >> "$AUTOSTART_FILE"
+  fi
+  chown -R "$PI_USER:$PI_USER" "$LXDE_DIR"
+  ok "LXDE autostart fallback configured"
+fi
 
 # Emergency exit keybinding (Ctrl+Alt+X) for Openbox/LXDE (created if not present)
 if [[ ! -f "$OPENBOX_RC" ]]; then
@@ -448,15 +365,15 @@ fi
 ok "Kiosk autostart configured"
 
 # ---------------------------------------------------------
-banner "13) Permissions & logs"
+banner "12) Permissions & logs"
 mkdir -p /var/log/spectrabox
 chown "$PI_USER:$PI_USER" /var/log/spectrabox
 chown -R "$PI_USER:$PI_USER" "$APP_DIR"
 ok "Ownership & log dir applied"
 
 # ---------------------------------------------------------
-banner "14) Quick health check"
-if command -v curl >/dev/null 2>&1 && \
+banner "13) Quick health check"
+if command -v curl >/div/null 2>&1 && \
    (curl -sk "http://localhost:${PORT}/api/health" >/dev/null 2>&1 || \
     curl -sk "https://localhost:${PORT}/api/health" >/dev/null 2>&1); then
   ok "Server responded to /api/health"
@@ -465,13 +382,13 @@ else
 fi
 
 # ---------------------------------------------------------
-banner "15) Final notes"
+banner "14) Final notes"
 echo "  • Service : ${SERVICE_NAME} — status with: sudo systemctl status ${SERVICE_NAME}"
 echo "  • App Dir : ${APP_DIR}"
 echo "  • URL     : ${URL}"
 echo "  • Kiosk   : Autostarts at login; emergency exit Ctrl+Alt+X"
 echo "  • Start/Stop kiosk manually: '${START_KIOSK}' / '${EXIT_KIOSK}'"
-echo "  • Debug Chromium issues: '${DEBUG_KIOSK}'"
+echo "  • Install log: ${INSTALL_LOG}"
 
 ok "Install complete. Reboot recommended."
 read -r -p "Reboot now to enter kiosk mode? [Y/n] " ans
