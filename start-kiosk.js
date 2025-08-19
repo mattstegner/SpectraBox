@@ -29,7 +29,6 @@ const config = {
       '--autoplay-policy=no-user-gesture-required',
       '--allow-running-insecure-content',
       '--user-data-dir=' + (process.env.HOME || '/home/pi') + '/.config/spectrabox-chrome',
-      '--disable-features=VizDisplayCompositor',
       '--start-fullscreen',
       '--no-default-browser-check',
       '--disable-default-apps',
@@ -38,7 +37,10 @@ const config = {
       '--ignore-ssl-errors',
       '--ignore-certificate-errors-spki-list',
       '--use-fake-device-for-media-stream=false', // Enable real microphone access
-      '--enable-features=HardwareMediaKeyHandling'
+      '--enable-features=HardwareMediaKeyHandling',
+      '--no-sandbox', // Required for some Pi configurations
+      '--disable-dev-shm-usage', // Overcome limited resource problems
+      '--disable-gpu-sandbox' // GPU sandbox can cause issues on Pi
     ]
   },
   delays: {

@@ -57,6 +57,9 @@ apt-get install -y --no-install-recommends \
   ca-certificates curl wget git jq xdg-utils \
   xdotool unclutter \
   libnss3 libatk1.0-0 libxss1 libasound2 \
+  libgtk-3-0 libgdk-pixbuf2.0-0 libxcomposite1 \
+  libxcursor1 libxdamage1 libxrandr2 libgbm1 \
+  libxkbcommon0 libatspi2.0-0 \
   alsa-utils openssl
 ok "System packages installed/updated"
 
@@ -344,19 +347,28 @@ if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
   if [[ "\${URL}" =~ ^http:// ]]; then
     EXTRA_HTTP_FLAG="--unsafely-treat-insecure-origin-as-secure=\${URL}"
   fi
+  
+  # Create user data directory if it doesn't exist
+  mkdir -p "\${PI_HOME}/.config/spectrabox-chrome"
+  
   exec "\${BROWSER_BIN}" \\
     --kiosk "\${URL}" \\
-    --app="\${URL}" \\
     --noerrdialogs \\
     --disable-session-crashed-bubble \\
+    --disable-infobars \\
+    --disable-translate \\
+    --disable-features=TranslateUI \\
     --autoplay-policy=no-user-gesture-required \\
     --ignore-certificate-errors \\
+    --ignore-ssl-errors \\
     --start-maximized \\
     --user-data-dir="\${PI_HOME}/.config/spectrabox-chrome" \\
     --allow-running-insecure-content \\
     --use-fake-device-for-media-stream=false \\
     --enable-features=HardwareMediaKeyHandling \\
-    --disable-features=VizDisplayCompositor \\
+    --no-sandbox \\
+    --disable-dev-shm-usage \\
+    --disable-gpu-sandbox \\
     \${EXTRA_HTTP_FLAG}
 else
   # Firefox ESR fallback
@@ -375,6 +387,41 @@ pkill -f firefox-esr || true
 EOS
 chmod +x "$EXIT_KIOSK"
 chown "$PI_USER:$PI_USER" "$EXIT_KIOSK"
+
+# Create debug script for troubleshooting
+DEBUG_KIOSK="$PI_HOME/debug-kiosk.sh"
+cat > "$DEBUG_KIOSK" <<EOS
+#!/usr/bin/env bash
+# Debug script for troubleshooting Chromium launch issues
+echo "=== Chromium Debug Information ==="
+echo "Browser binary: ${BROWSER_BIN}"
+echo "URL: ${URL}"
+echo "User data dir: \${PI_HOME}/.config/spectrabox-chrome"
+echo ""
+echo "=== Testing browser launch with verbose output ==="
+export DISPLAY=\${DISPLAY:-:0}
+
+# Test basic chromium launch
+echo "Testing: \${BROWSER_BIN} --version"
+"${BROWSER_BIN}" --version || echo "Version check failed"
+
+echo ""
+echo "Testing: \${BROWSER_BIN} --help | head -10"
+"${BROWSER_BIN}" --help | head -10 || echo "Help check failed"
+
+echo ""
+echo "=== Attempting kiosk launch with debug output ==="
+"${BROWSER_BIN}" \\
+  --kiosk "${URL}" \\
+  --user-data-dir="\${PI_HOME}/.config/spectrabox-chrome" \\
+  --no-sandbox \\
+  --disable-dev-shm-usage \\
+  --disable-gpu-sandbox \\
+  --enable-logging=stderr \\
+  --v=1
+EOS
+chmod +x "$DEBUG_KIOSK"
+chown "$PI_USER:$PI_USER" "$DEBUG_KIOSK"
 
 cat > "$KIOSK_DESKTOP" <<EOF
 [Desktop Entry]
@@ -424,6 +471,7 @@ echo "  • App Dir : ${APP_DIR}"
 echo "  • URL     : ${URL}"
 echo "  • Kiosk   : Autostarts at login; emergency exit Ctrl+Alt+X"
 echo "  • Start/Stop kiosk manually: '${START_KIOSK}' / '${EXIT_KIOSK}'"
+echo "  • Debug Chromium issues: '${DEBUG_KIOSK}'"
 
 ok "Install complete. Reboot recommended."
 read -r -p "Reboot now to enter kiosk mode? [Y/n] " ans
