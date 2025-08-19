@@ -546,6 +546,21 @@ set -u
 set -o pipefail
 export DISPLAY=\${DISPLAY:-:0}
 
+# Check if we're in test mode (no kiosk)
+TEST_MODE=\${1:-}
+if [ "\$TEST_MODE" = "test" ]; then
+  echo "TEST MODE: Launching Chromium without kiosk for debugging"
+  exec "\${BROWSER_BIN:-$(command -v chromium || command -v chromium-browser || command -v firefox-esr)}" \
+    --no-first-run \
+    --disable-infobars \
+    --ignore-certificate-errors \
+    --ignore-ssl-errors \
+    --no-sandbox \
+    --disable-dev-shm-usage \
+    "http://localhost:${PORT}"
+  exit 0
+fi
+
 xset s off || true
 xset -dpms || true
 xset s noblank || true
@@ -601,28 +616,17 @@ fi
 
 echo "Launching browser in kiosk mode..."
 if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
-  EXTRA_HTTP_FLAG=""
-  if [[ "\${URL}" =~ ^http:// ]]; then
-    EXTRA_HTTP_FLAG="--unsafely-treat-insecure-origin-as-secure=\${URL}"
-  fi
+  # Simplified Chromium launch - remove problematic flags for manual testing
   exec "\${BROWSER_BIN}" \
     --kiosk "\${URL}" \
-    --app="\${URL}" \
-    --noerrdialogs \
-    --disable-session-crashed-bubble \
+    --no-first-run \
     --disable-infobars \
+    --disable-session-crashed-bubble \
     --disable-translate \
-    --autoplay-policy=no-user-gesture-required \
     --ignore-certificate-errors \
     --ignore-ssl-errors \
-    --start-maximized \
-    --user-data-dir="\${CHROME_DATA_DIR}" \
-    --allow-running-insecure-content \
-    --use-fake-device-for-media-stream=false \
     --no-sandbox \
-    --disable-dev-shm-usage \
-    --disable-gpu-sandbox \
-    \${EXTRA_HTTP_FLAG}
+    --disable-dev-shm-usage
 else
   exec "\${BROWSER_BIN}" --kiosk "\${URL}"
 fi
@@ -672,6 +676,68 @@ EOF
     chown -R "$PI_USER:$PI_USER" "$OPENBOX_DIR"
   fi
   echo "✔ Kiosk launcher & autostart written"
+  
+  # Test Chromium manually to ensure it can launch
+  echo "Testing Chromium launch capability..."
+  if command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1; then
+    echo "Chromium found, testing basic launch capability..."
+    echo "You can test manually with:"
+    echo "  # Test without kiosk mode:"
+    echo "  sudo -u ${PI_USER} ${START_KIOSK} test"
+    echo "  # Test with kiosk mode:"
+    echo "  sudo -u ${PI_USER} ${START_KIOSK}"
+    echo "  # Test basic Chromium:"
+    echo "  sudo -u ${PI_USER} $(command -v chromium || command -v chromium-browser) --version"
+  else
+    echo "! Chromium not found, using Firefox fallback"
+  fi
+fi
+
+# ---------------------------------------------------------
+CURRENT_STEP="Chromium troubleshooting check"
+if confirm_step "11.5" "Chromium troubleshooting check" "Check for common Chromium issues and provide debugging info"; then
+  echo "Checking for common Chromium issues..."
+  
+  # Check if Chromium is installed and accessible
+  CHROMIUM_BIN=""
+  if command -v chromium >/dev/null 2>&1; then
+    CHROMIUM_BIN="chromium"
+  elif command -v chromium-browser >/dev/null 2>&1; then
+    CHROMIUM_BIN="chromium-browser"
+  fi
+  
+  if [ -n "$CHROMIUM_BIN" ]; then
+    echo "✔ Chromium found: $CHROMIUM_BIN"
+    
+    # Test basic Chromium functionality
+    echo "Testing Chromium version..."
+    if sudo -u "$PI_USER" "$CHROMIUM_BIN" --version >/dev/null 2>&1; then
+      echo "✔ Chromium version check passed"
+    else
+      echo "✖ Chromium version check failed - permission issue"
+    fi
+    
+    # Check for sandbox issues
+    echo "Checking for sandbox issues..."
+    if sudo -u "$PI_USER" "$CHROMIUM_BIN" --no-sandbox --version >/dev/null 2>&1; then
+      echo "✔ Chromium works with --no-sandbox"
+    else
+      echo "✖ Chromium has issues even with --no-sandbox"
+    fi
+    
+    # Check display access
+    echo "Checking display access..."
+    if [ -n "${DISPLAY:-}" ] || sudo -u "$PI_USER" test -e /tmp/.X11-unix/X0; then
+      echo "✔ Display access available"
+    else
+      echo "✖ No display access detected"
+    fi
+    
+  else
+    echo "✖ Chromium not found - will use Firefox fallback"
+  fi
+  
+  echo "✔ Chromium troubleshooting complete"
 fi
 
 # ---------------------------------------------------------
@@ -827,6 +893,14 @@ if confirm_step "14" "Finish & reboot" "Show summary; optionally reboot into kio
   echo "  • If browser won't start: check DISPLAY variable and X11"
   echo "  • If audio issues: ensure user is in audio group"
   echo "  • If port conflicts: check with 'sudo netstat -tlnp | grep :${PORT}'"
+  echo "  • If Chromium won't launch: test manually with commands below"
+  echo
+  echo "🔍 Chromium Debugging:"
+  echo "  • Test Chromium version: sudo -u ${PI_USER} $(command -v chromium || command -v chromium-browser || echo 'chromium') --version"
+  echo "  • Test without kiosk: sudo -u ${PI_USER} ${PI_HOME}/start-kiosk.sh test"
+  echo "  • Test with kiosk: sudo -u ${PI_USER} ${PI_HOME}/start-kiosk.sh"
+  echo "  • Check display: echo \$DISPLAY && ls -la /tmp/.X11-unix/"
+  echo "  • Check user services: sudo -u ${PI_USER} systemctl --user status spectrabox-kiosk"
   echo
   echo "🔍 Next Steps - Verification Commands:"
   echo "  • Check Node server status:"
