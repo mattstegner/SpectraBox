@@ -18,31 +18,31 @@ The easiest way to deploy SpectraBox is using the complete deployment script tha
 
 **Method 1: Direct deployment (fastest)**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/quick-install.sh | sudo bash
 ```
 
 **Method 2: Alternative installation (recommended for compatibility)**
+```bash
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/quick-install.sh
+chmod +x quick-install.sh
+./quick-install.sh
+```
+
+**Method 3: Manual installation (for advanced users)**
 ```bash
 wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install-spectrabox.sh
 chmod +x install-spectrabox.sh
 ./install-spectrabox.sh
 ```
 
-**Method 3: Download and inspect first**
-```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh
-chmod +x complete-pi-deployment.sh
-./complete-pi-deployment.sh
-```
-
 This complete deployment script will:
 - Update system packages
 - Install Node.js 18 and dependencies
-- Install audio system dependencies (ALSA, PulseAudio)
+- Install audio system dependencies (ALSA, PulseAudio, PipeWire)
 - Install kiosk mode dependencies (Chromium, unclutter, xdotool)
 - Clone the SpectraBox repository to `/home/pi/spectrabox`
 - Install application dependencies
-- Generate SSL certificates for HTTPS
+- Generate SSL certificates for HTTPS (enables microphone permissions)
 - Set up systemd service for auto-start
 - Configure complete kiosk mode with auto-start
 - Create recovery scripts and emergency exit shortcuts
@@ -57,8 +57,8 @@ This complete deployment script will:
 | Method | Pros | Cons | Best For |
 |--------|------|------|----------|
 | Method 1 (curl pipe) | Fastest, single command | May have compatibility issues on some systems | Most Debian/Ubuntu systems |
-| Method 2 (install-spectrabox.sh) | Most compatible, avoids piping issues | Requires two commands | Systems with curl/bash compatibility issues |
-| Method 3 (download first) | Can inspect before running | Manual process | Security-conscious users |
+| Method 2 (quick-install.sh) | Most compatible, avoids piping issues | Requires two commands | Systems with curl/bash compatibility issues |
+| Method 3 (manual install) | Can inspect before running | Manual process | Security-conscious users |
 
 **Troubleshooting Installation Issues:**
 
@@ -73,6 +73,8 @@ These issues are typically caused by:
 - Shell compatibility issues with certain Debian configurations
 - Permission problems with temporary file creation during piping
 
+**Note:** The new installation scripts have been redesigned to be more robust and avoid these common issues.
+
 ### Basic Deployment (Application Only)
 
 If you only want to install the application without kiosk mode:
@@ -82,8 +84,8 @@ If you only want to install the application without kiosk mode:
 git clone https://github.com/mattstegner/SpectraBox.git /home/pi/spectrabox
 cd /home/pi/spectrabox
 
-# Run the basic deployment script
-./scripts/deploy-pi.sh
+# Run the complete installation script
+sudo ./scripts/install-spectrabox.sh
 ```
 
 This basic script will:
