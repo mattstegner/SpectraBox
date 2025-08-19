@@ -384,14 +384,12 @@ Wants=graphical-session.target
 
 [Service]
 Type=simple
-Environment=DISPLAY=:0
-Environment=WAYLAND_DISPLAY=wayland-0
 ExecStart=%h/start-kiosk.sh
 Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target
 EOF
 
   chown "$PI_USER:$PI_USER" "$USER_KIOSK_SERVICE"
