@@ -385,12 +385,13 @@ Wants=graphical-session.target
 [Service]
 Type=simple
 Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-0
 ExecStart=%h/start-kiosk.sh
 Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target
 EOF
 
   chown "$PI_USER:$PI_USER" "$USER_KIOSK_SERVICE"
@@ -406,11 +407,11 @@ if confirm_step "8.6" "Enable user-level kiosk service" "Enable user linger and 
   loginctl enable-linger "$PI_USER" || true
   
   # Reload user systemd and enable kiosk service
-  sudo -u "$PI_USER" systemctl --user daemon-reload || true
-  sudo -u "$PI_USER" systemctl --user enable spectrabox-kiosk.service || true
+  sudo -u "$PI_USER" env XDG_RUNTIME_DIR="/run/user/$(id -u "$PI_USER")" systemctl --user daemon-reload || true
+  sudo -u "$PI_USER" env XDG_RUNTIME_DIR="/run/user/$(id -u "$PI_USER")" systemctl --user enable spectrabox-kiosk.service || true
   
   # Verify the service is enabled
-  if sudo -u "$PI_USER" systemctl --user is-enabled --quiet spectrabox-kiosk.service; then
+  if sudo -u "$PI_USER" env XDG_RUNTIME_DIR="/run/user/$(id -u "$PI_USER")" systemctl --user is-enabled --quiet spectrabox-kiosk.service; then
     echo "✔ User-level kiosk service enabled"
   else
     echo "! User-level kiosk service may not be enabled (this is normal on first run)"
@@ -546,6 +547,12 @@ set -u
 set -o pipefail
 export DISPLAY=\${DISPLAY:-:0}
 
+# Detect session type (Wayland vs X11)
+SESSION_TYPE="x11"
+if [ -n "\${WAYLAND_DISPLAY:-}" ] || [ -S "/run/user/\$(id -u)/wayland-0" ]; then
+  SESSION_TYPE="wayland"
+fi
+
 # Check if we're in test mode (no kiosk)
 TEST_MODE=\${1:-}
 if [ "\$TEST_MODE" = "test" ]; then
@@ -614,19 +621,29 @@ if ! curl -sk --max-time 5 "\${URL}/api/health" >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Launching browser in kiosk mode..."
+echo "Launching browser in kiosk mode (session: \${SESSION_TYPE})..."
 if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
-  # Simplified Chromium launch - remove problematic flags for manual testing
-  exec "\${BROWSER_BIN}" \
-    --kiosk "\${URL}" \
-    --no-first-run \
-    --disable-infobars \
-    --disable-session-crashed-bubble \
-    --disable-translate \
-    --ignore-certificate-errors \
-    --ignore-ssl-errors \
-    --no-sandbox \
+  # Base flags
+  FLAGS=(
+    --kiosk "\${URL}"
+    --no-first-run
+    --disable-infobars
+    --disable-session-crashed-bubble
+    --disable-translate
+    --ignore-certificate-errors
+    --ignore-ssl-errors
+    --no-sandbox
     --disable-dev-shm-usage
+  )
+
+  # Wayland-specific
+  if [ "\${SESSION_TYPE}" = "wayland" ]; then
+    FLAGS+=(--ozone-platform=wayland --enable-features=UseOzonePlatform)
+  else
+    FLAGS+=(--ozone-platform=x11)
+  fi
+
+  exec "\${BROWSER_BIN}" "\${FLAGS[@]}"
 else
   exec "\${BROWSER_BIN}" --kiosk "\${URL}"
 fi
