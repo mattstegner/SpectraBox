@@ -133,8 +133,37 @@ else
 fi
 ok "Node dependencies installed"
 
+# Initialize configuration files
+if [[ -f "$APP_DIR/scripts/init-config.js" ]]; then
+  step "Initializing configuration files"
+  sudo -u "$PI_USER" node "$APP_DIR/scripts/init-config.js"
+else
+  step "Configuration initialization script not found, skipping"
+fi
+
 # ---------------------------------------------------------
-banner "7) Generate HTTPS certs (for persistent mic permission)"
+banner "7) Ensure Version.txt file exists and is properly managed"
+VERSION_FILE="$APP_DIR/Version.txt"
+if [[ ! -f "$VERSION_FILE" ]]; then
+  step "Creating Version.txt file with current version"
+  # Try to get version from package.json, fallback to git, then default
+  if [[ -f "$APP_DIR/package.json" ]] && command -v jq >/dev/null 2>&1; then
+    VERSION=$(jq -r '.version // "1.0.0"' "$APP_DIR/package.json")
+  elif [[ -d "$APP_DIR/.git" ]] && command -v git >/dev/null 2>&1; then
+    VERSION=$(cd "$APP_DIR" && git describe --tags --always --dirty 2>/dev/null || echo "1.0.0")
+  else
+    VERSION="1.0.0"
+  fi
+  echo "$VERSION" > "$VERSION_FILE"
+  chown "$PI_USER:$PI_USER" "$VERSION_FILE"
+  step "Version.txt created with version: $VERSION"
+else
+  step "Version.txt already exists: $(cat "$VERSION_FILE" 2>/dev/null || echo 'unreadable')"
+fi
+ok "Version file ready"
+
+# ---------------------------------------------------------
+banner "8) Generate HTTPS certs (for persistent mic permission)"
 CERT_DIR="$APP_DIR/certs"
 mkdir -p "$CERT_DIR"
 chown -R "$PI_USER:$PI_USER" "$CERT_DIR"
@@ -155,7 +184,7 @@ fi
 ok "TLS certificates ready"
 
 # ---------------------------------------------------------
-banner "8) Create systemd service for SpectraBox"
+banner "9) Create systemd service for SpectraBox"
 # Prefer npm start if defined; fallback to server.js
 EXEC_START=""
 if [[ -f package.json ]] && jq -e '.scripts.start' package.json >/dev/null 2>&1; then
@@ -205,7 +234,7 @@ systemctl --no-pager --full status "${SERVICE_NAME}" || true
 ok "Systemd service enabled & started"
 
 # ---------------------------------------------------------
-banner "9) Configure Desktop autologin / GUI boot (Pi OS if available)"
+banner "10) Configure Desktop autologin / GUI boot (Pi OS if available)"
 # CHANGE 2: guard raspi-config; Debian falls back to graphical.target
 if command -v raspi-config >/dev/null 2>&1; then
   raspi-config nonint do_boot_behaviour B4 || true   # Desktop autologin
@@ -216,7 +245,7 @@ else
 fi
 
 # ---------------------------------------------------------
-banner "10) Chromium policy: allow mic for localhost"
+banner "11) Chromium policy: allow mic for localhost"
 install -d /etc/chromium/policies/managed /etc/opt/chrome/policies/managed
 cat >/etc/chromium/policies/managed/kiosk-mic.json <<'JSON'
 {
@@ -232,7 +261,7 @@ cp /etc/chromium/policies/managed/kiosk-mic.json /etc/opt/chrome/policies/manage
 ok "Chromium policy installed"
 
 # ---------------------------------------------------------
-banner "11) Create kiosk launcher scripts & autostart entry"
+banner "12) Create kiosk launcher scripts & autostart entry"
 START_KIOSK="$PI_HOME/start-kiosk.sh"
 EXIT_KIOSK="$PI_HOME/exit-kiosk.sh"
 AUTOSTART_DIR="$PI_HOME/.config/autostart"
@@ -348,14 +377,14 @@ fi
 ok "Kiosk autostart configured"
 
 # ---------------------------------------------------------
-banner "12) Permissions & logs"
+banner "13) Permissions & logs"
 mkdir -p /var/log/spectrabox
 chown "$PI_USER:$PI_USER" /var/log/spectrabox
 chown -R "$PI_USER:$PI_USER" "$APP_DIR"
 ok "Ownership & log dir applied"
 
 # ---------------------------------------------------------
-banner "13) Quick health check"
+banner "14) Quick health check"
 if command -v curl >/dev/null 2>&1 && \
    (curl -sk "http://localhost:${PORT}/api/health" >/dev/null 2>&1 || \
     curl -sk "https://localhost:${PORT}/api/health" >/dev/null 2>&1); then
@@ -365,7 +394,7 @@ else
 fi
 
 # ---------------------------------------------------------
-banner "14) Final notes"
+banner "15) Final notes"
 echo "  • Service : ${SERVICE_NAME} — status with: sudo systemctl status ${SERVICE_NAME}"
 echo "  • App Dir : ${APP_DIR}"
 echo "  • URL     : ${URL}"

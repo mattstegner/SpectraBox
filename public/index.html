@@ -424,6 +424,8 @@
       .update-status-checking,
       .update-status-available,
       .update-status-current,
+      .update-status-updating,
+      .update-status-success,
       .update-status-error,
       .repository-info {
         background: rgba(0, 0, 0, 0.3);
@@ -445,9 +447,328 @@
         background: rgba(0, 128, 255, 0.1);
       }
 
+      .update-status-updating {
+        border-color: #ffaa00;
+        background: rgba(255, 170, 0, 0.1);
+      }
+
+      .update-status-success {
+        border-color: #00ff00;
+        background: rgba(0, 255, 0, 0.1);
+      }
+
       .update-status-error {
         border-color: #cc4400;
         background: rgba(204, 68, 0, 0.1);
+      }
+
+      /* Update Progress Styles */
+      .update-progress {
+        margin-top: 10px;
+      }
+
+      .progress-bar {
+        width: 100%;
+        height: 20px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #ffaa00, #ff8800);
+        border-radius: 10px;
+        transition: width 0.3s ease;
+        position: relative;
+      }
+
+      .progress-fill::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        animation: progress-shine 2s infinite;
+      }
+
+      @keyframes progress-shine {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+
+      .progress-text {
+        text-align: center;
+        margin-top: 5px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #ffaa00;
+      }
+
+      /* Update Error Details */
+      .update-error-details {
+        margin-top: 10px;
+      }
+
+      .update-error-details details {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+        padding: 8px;
+      }
+
+      .update-error-details summary {
+        cursor: pointer;
+        font-weight: bold;
+        color: #ff8800;
+        margin-bottom: 5px;
+      }
+
+      .update-error-details pre {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 8px;
+        border-radius: 3px;
+        font-size: 11px;
+        color: #ff6666;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+
+      /* Update Timestamp */
+      .update-timestamp {
+        margin-top: 8px;
+        font-size: 11px;
+        opacity: 0.6;
+        text-align: right;
+      }
+
+      /* Update Success Countdown Styles */
+      .update-countdown {
+        margin-top: 15px;
+        padding: 10px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+        text-align: center;
+      }
+
+      .countdown-text {
+        font-size: 14px;
+        margin-bottom: 10px;
+        color: #00ff00;
+      }
+
+      .countdown-progress {
+        width: 100%;
+        height: 8px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 10px;
+      }
+
+      .countdown-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #00ff00, #00cc00);
+        border-radius: 4px;
+        transition: width 1s linear;
+        width: 0%;
+      }
+
+      .reload-now-btn {
+        background-color: #00aa00;
+        color: white;
+        border: 1px solid #00cc00;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: background-color 0.2s;
+      }
+
+      .reload-now-btn:hover {
+        background-color: #00cc00;
+      }
+
+      /* Update Notification Overlay */
+      .update-notification-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.9);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(5px);
+      }
+
+      .update-notification-content {
+        background: #222;
+        border: 2px solid #555;
+        border-radius: 12px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        text-align: center;
+      }
+
+      .update-notification-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        gap: 15px;
+      }
+
+      .update-icon {
+        font-size: 32px;
+        animation: spin 2s linear infinite;
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      .update-title {
+        font-size: 24px;
+        font-weight: bold;
+        color: #ffaa00;
+      }
+
+      .update-notification-body {
+        color: #fff;
+      }
+
+      .update-message {
+        font-size: 16px;
+        margin-bottom: 20px;
+        color: #ccc;
+      }
+
+      .update-progress-container {
+        margin: 20px 0;
+      }
+
+      .update-progress-bar {
+        width: 100%;
+        height: 20px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 10px;
+      }
+
+      .update-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #ffaa00, #ff8800);
+        border-radius: 10px;
+        transition: width 0.5s ease;
+        position: relative;
+      }
+
+      .update-progress-fill::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        animation: progress-shine 2s infinite;
+      }
+
+      .update-progress-text {
+        font-size: 14px;
+        font-weight: bold;
+        color: #ffaa00;
+      }
+
+      .update-notification-info {
+        margin-top: 20px;
+        padding: 15px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .update-notification-info p {
+        margin: 8px 0;
+        color: #ccc;
+      }
+
+      .reconnection-attempts {
+        font-size: 12px;
+        color: #ffaa00;
+        margin-top: 10px;
+      }
+
+      /* Connection status messages */
+      .connection-lost-message {
+        color: #ff8800;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      .connection-status {
+        color: #ccc;
+        font-size: 14px;
+      }
+
+      .connection-timeout-message {
+        color: #ffaa00;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      .connection-restored-message {
+        color: #00ff00;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      .manual-refresh-btn {
+        background-color: #0080ff;
+        color: white;
+        border: 1px solid #4a9eff;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        margin: 10px;
+        transition: background-color 0.2s;
+      }
+
+      .manual-refresh-btn:hover {
+        background-color: #4a9eff;
+      }
+
+      .timeout-info {
+        font-size: 12px;
+        color: #aaa;
+        margin-top: 15px;
+        font-style: italic;
+      }
+
+      .server-shutdown-message {
+        color: #ffaa00;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      .shutdown-timestamp {
+        font-size: 12px;
+        color: #aaa;
+        margin-top: 10px;
+        font-style: italic;
       }
 
       .version-info {

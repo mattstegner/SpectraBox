@@ -83,6 +83,8 @@ describe('Settings Persistence Manager - Comprehensive Test Suite', () => {
         this.pendingSettings = null;
         this.isLoading = false;
         
+        // UI control mappings for each settings category
+        // Note: Server tab is excluded as it contains action buttons, not persistent settings
         this.controlMappings = {
           general: {
             minFrequency: { element: 'minFreqSlider', type: 'number', display: 'minFreqValue', formatter: (v) => `${v} Hz` },
@@ -493,6 +495,51 @@ describe('Settings Persistence Manager - Comprehensive Test Suite', () => {
 
       showSettingsFeedback(message, type) {
         // Mock feedback method
+      }
+
+      // Server tab integration methods
+      setupServerTabIntegration() {
+        const serverTab = document.querySelector('.settings-tab[data-tab="server"]');
+        if (!serverTab) {
+          console.warn('Server tab not found in DOM');
+          return;
+        }
+
+        serverTab.addEventListener('click', () => {
+          setTimeout(() => {
+            this.ensureServerManagerInitialized();
+          }, 150);
+        });
+
+        console.log('Server tab integration set up successfully');
+      }
+
+      ensureServerManagerInitialized() {
+        if (window.serverManager && !window.serverManager.isInitialized) {
+          console.log('Initializing ServerManager from settings persistence system');
+          window.serverManager.initialize().catch(error => {
+            console.error('Failed to initialize ServerManager:', error);
+          });
+        } else if (!window.serverManager) {
+          console.warn('ServerManager not found on window object');
+        }
+      }
+
+      isServerTabActive() {
+        const serverTab = document.querySelector('.settings-tab[data-tab="server"]');
+        const serverPage = document.getElementById('server-page');
+        return serverTab && serverTab.classList.contains('active') && 
+               serverPage && serverPage.classList.contains('active');
+      }
+
+      getServerTabStatus() {
+        return {
+          tabExists: !!document.querySelector('.settings-tab[data-tab="server"]'),
+          pageExists: !!document.getElementById('server-page'),
+          isActive: this.isServerTabActive(),
+          serverManagerExists: !!window.serverManager,
+          serverManagerInitialized: window.serverManager ? window.serverManager.isInitialized : false
+        };
       }
     }
 
@@ -1570,6 +1617,148 @@ describe('Settings Persistence Manager - Comprehensive Test Suite', () => {
       // Should still validate correctly (will fail due to unknown settings, but shouldn't crash)
       expect(result).toBeDefined();
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('Server Tab Integration', () => {
+    beforeEach(() => {
+      // Mock Server tab DOM elements
+      const serverTab = {
+        classList: { contains: jest.fn(() => false) },
+        addEventListener: jest.fn()
+      };
+      const serverPage = {
+        classList: { contains: jest.fn(() => false) }
+      };
+      
+      mockDOM.querySelector = jest.fn((selector) => {
+        if (selector === '.settings-tab[data-tab="server"]') return serverTab;
+        return null;
+      });
+      
+      mockDOM.getElementById = jest.fn((id) => {
+        if (id === 'server-page') return serverPage;
+        return mockDOM.elements.get(id) || null;
+      });
+
+      // Mock ServerManager
+      global.window = {
+        serverManager: {
+          isInitialized: false,
+          initialize: jest.fn().mockResolvedValue(true)
+        }
+      };
+
+      // Set up DOM globals
+      global.document = mockDOM;
+    });
+
+    test('should set up Server tab integration during initialization', () => {
+      const settingsManager = new SettingsManager();
+      settingsManager.setupServerTabIntegration();
+
+      // Should have found the server tab and attached event listener
+      expect(mockDOM.querySelector).toHaveBeenCalledWith('.settings-tab[data-tab="server"]');
+    });
+
+    test('should detect Server tab status correctly', () => {
+      const settingsManager = new SettingsManager();
+      
+      const status = settingsManager.getServerTabStatus();
+      
+      expect(status).toEqual({
+        tabExists: true,
+        pageExists: true,
+        isActive: false,
+        serverManagerExists: true,
+        serverManagerInitialized: false
+      });
+    });
+
+    test('should detect when Server tab is active', () => {
+      const settingsManager = new SettingsManager();
+      
+      // Mock active state
+      mockDOM.querySelector = jest.fn((selector) => {
+        if (selector === '.settings-tab[data-tab="server"]') {
+          return { classList: { contains: jest.fn(() => true) } };
+        }
+        return null;
+      });
+      
+      mockDOM.getElementById = jest.fn((id) => {
+        if (id === 'server-page') {
+          return { classList: { contains: jest.fn(() => true) } };
+        }
+        return null;
+      });
+
+      expect(settingsManager.isServerTabActive()).toBe(true);
+    });
+
+    test('should initialize ServerManager when Server tab is accessed', async () => {
+      const settingsManager = new SettingsManager();
+      
+      await settingsManager.ensureServerManagerInitialized();
+      
+      expect(global.window.serverManager.initialize).toHaveBeenCalled();
+    });
+
+    test('should handle missing ServerManager gracefully', () => {
+      const settingsManager = new SettingsManager();
+      global.window.serverManager = null;
+      
+      // Should not throw error
+      expect(() => {
+        settingsManager.ensureServerManagerInitialized();
+      }).not.toThrow();
+    });
+
+    test('should not reinitialize already initialized ServerManager', () => {
+      const settingsManager = new SettingsManager();
+      global.window.serverManager.isInitialized = true;
+      
+      settingsManager.ensureServerManagerInitialized();
+      
+      expect(global.window.serverManager.initialize).not.toHaveBeenCalled();
+    });
+
+    test('should exclude Server tab from control mappings', () => {
+      const settingsManager = new SettingsManager();
+      
+      // Server tab should not be in control mappings since it contains action buttons, not settings
+      expect(settingsManager.controlMappings.server).toBeUndefined();
+      
+      // But other tabs should be present
+      expect(settingsManager.controlMappings.general).toBeDefined();
+      expect(settingsManager.controlMappings.spectrogramInterface).toBeDefined();
+      expect(settingsManager.controlMappings.spectrogramDrawing).toBeDefined();
+      expect(settingsManager.controlMappings.meters).toBeDefined();
+    });
+
+    test('should handle Server tab click event properly', () => {
+      const settingsManager = new SettingsManager();
+      jest.useFakeTimers();
+      
+      const serverTab = {
+        classList: { contains: jest.fn(() => false) },
+        addEventListener: jest.fn()
+      };
+      
+      mockDOM.querySelector = jest.fn(() => serverTab);
+      
+      settingsManager.setupServerTabIntegration();
+      
+      // Simulate tab click
+      const clickHandler = serverTab.addEventListener.mock.calls[0][1];
+      clickHandler();
+      
+      // Fast-forward past the setTimeout delay
+      jest.advanceTimersByTime(200);
+      
+      expect(global.window.serverManager.initialize).toHaveBeenCalled();
+      
+      jest.useRealTimers();
     });
   });
 });

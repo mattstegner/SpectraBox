@@ -1,88 +1,88 @@
 {
-  "timestamp": "2025-07-23T05:30:42.311Z",
-  "totalDuration": 119304,
+  "timestamp": "2025-08-18T23:59:31.876Z",
+  "totalDuration": 129591,
   "summary": {
     "total": 11,
-    "passed": 3,
-    "failed": 8,
-    "successRate": 27
+    "passed": 4,
+    "failed": 7,
+    "successRate": 36
   },
   "results": [
     {
       "suite": "Unit Tests",
       "pattern": "unit-fast.test.js",
       "success": true,
-      "duration": 987,
+      "duration": 1334,
       "exitCode": 0
     },
     {
       "suite": "Integration Tests",
       "pattern": "integration.test.js server.test.js",
       "success": false,
-      "duration": 331,
+      "duration": 317,
       "exitCode": 1
     },
     {
       "suite": "Cross-Platform Tests",
       "pattern": "cross-platform-*.test.js",
       "success": false,
-      "duration": 341,
+      "duration": 316,
       "exitCode": 1
     },
     {
       "suite": "Performance Tests",
       "pattern": "pi-performance.test.js",
-      "success": false,
-      "duration": 15661,
-      "exitCode": 1
+      "success": true,
+      "duration": 15497,
+      "exitCode": 0
     },
     {
       "suite": "Audio Device Tests",
       "pattern": "audio-device-scenarios.test.js",
       "success": false,
-      "duration": 1064,
+      "duration": 1125,
       "exitCode": 1
     },
     {
       "suite": "Spectrum Analyzer Tests",
       "pattern": "spectrum-analyzer-integration.test.js",
       "success": false,
-      "duration": 74244,
+      "duration": 74452,
       "exitCode": null
     },
     {
       "suite": "End-to-End Tests",
       "pattern": "e2e-*.test.js",
       "success": false,
-      "duration": 628,
+      "duration": 592,
       "exitCode": 1
     },
     {
       "suite": "Comprehensive Integration Tests",
       "pattern": "comprehensive-integration.test.js",
       "success": false,
-      "duration": 2377,
+      "duration": 12353,
       "exitCode": 1
     },
     {
       "suite": "Network Accessibility Tests",
       "pattern": "network-accessibility.test.js",
       "success": true,
-      "duration": 691,
+      "duration": 670,
       "exitCode": 0
     },
     {
       "suite": "Security Tests",
       "pattern": "security-*.test.js",
       "success": false,
-      "duration": 344,
+      "duration": 321,
       "exitCode": 1
     },
     {
       "suite": "Accessibility Tests",
       "pattern": "accessibility-*.test.js",
       "success": true,
-      "duration": 609,
+      "duration": 588,
       "exitCode": 0
     }
   ]

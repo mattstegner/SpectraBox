@@ -13,6 +13,7 @@ A real-time spectrum analyzer and audio visualization application designed to ru
 - **Kiosk mode support** for dedicated displays and installations
 - **Comprehensive settings interface** with tabbed organization
 - **Professional-grade visualization** with smooth, responsive displays
+- **Real-time server update monitoring** with WebSocket-based status updates
 
 ## Quick Installation
 
@@ -24,6 +25,7 @@ The easiest way to get SpectraBox running on a Raspberry Pi is using our automat
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
 
+```bash
 Or, if curl errors occur, use:
 wget -qO- https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
 
@@ -70,6 +72,11 @@ cd SpectraBox
 ```bash
 npm install
 ```
+
+**Dependencies:**
+- `express` - Web server framework
+- `cors` - Cross-origin resource sharing middleware
+- `ws` - WebSocket library for real-time update status communication
 
 3. **Generate SSL certificates (recommended):**
 ```bash
@@ -129,6 +136,14 @@ The application includes a dedicated **Network** tab in the settings that shows:
 - Access URLs for local and network connections
 - Kiosk mode status
 
+### Server Tab
+
+The application includes a **Server** tab for server management:
+- Current version information
+- Update availability checking
+- Real-time update progress monitoring via WebSocket
+- Server update execution with progress tracking
+
 ## Audio Input Support
 
 SpectraBox supports a wide range of audio input devices:
@@ -179,10 +194,12 @@ SpectraBox is perfect for:
 - **Dedicated display** for kiosk mode installations
 - **Reliable network connection** for remote access
 
-## Support and Documentation
+## Documentation
 
-- **Installation Guide**: See [DEPLOYMENT.md](DEPLOYMENT.md) for complete setup instructions
-- **Troubleshooting**: Check the deployment guide for common issues and solutions
+- **[Installation Guide](DEPLOYMENT.md)** - Complete setup and deployment instructions
+- **[Version Management](docs/VERSION_MANAGEMENT.md)** - Understanding the update system
+- **[Release Management](docs/RELEASE_MANAGEMENT.md)** - Guide for developers creating updates
+- **Troubleshooting** - Check the deployment guide for common issues and solutions
 - **GitHub Issues**: Report bugs or request features on the GitHub repository
 - **Network Testing**: Use the included network test script for connectivity verification
 

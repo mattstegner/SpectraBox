@@ -134,6 +134,12 @@ cd /home/pi/spectrabox
 npm ci --only=production
 ```
 
+**Runtime Dependencies:**
+The application requires these Node.js packages (automatically installed):
+- `express` (^4.18.2) - Web server framework
+- `cors` (^2.8.5) - Cross-origin resource sharing middleware  
+- `ws` (^8.14.2) - WebSocket library for real-time update status communication
+
 Generate SSL certificates (recommended for HTTPS and microphone permissions):
 ```bash
 node generate-ssl.js
@@ -210,6 +216,31 @@ The application supports these environment variables (configured in the systemd 
 - `LOG_LEVEL`: Logging level (debug, info, warn, error)
 - `NODE_OPTIONS`: Node.js options (default: --max-old-space-size=256)
 
+### Update Configuration
+
+The server self-update system is configured through `config/update-config.json`. This file is automatically created during deployment with default settings, but can be customized:
+
+```json
+{
+  "github": {
+    "owner": "mattstegner",
+    "repository": "SpectraBox",
+    "apiUrl": "https://api.github.com"
+  },
+  "update": {
+    "enabled": true,
+    "autoUpdate": false,
+    "updateScript": "./scripts/spectrabox-kiosk-install.sh"
+  },
+  "version": {
+    "filePath": "./Version.txt",
+    "format": "semantic"
+  }
+}
+```
+
+For detailed configuration options, see [Version Management Documentation](docs/VERSION_MANAGEMENT.md).
+
 ### Systemd Service Configuration
 
 The service file includes optimizations for Raspberry Pi:
@@ -268,12 +299,26 @@ Returns:
 - Basic performance metrics
 - Uptime information
 
+### Update Status Monitoring
+
+Update status endpoint: `http://your-pi-ip:3000/api/update/status`
+
+Returns:
+- Current update status (idle, checking, updating, success, error)
+- Progress percentage for active updates
+- Status messages and timestamps
+- Error details if applicable
+
+**WebSocket Updates:**
+Real-time update status is also available via WebSocket connection on the same port. The frontend automatically connects and displays live progress during server updates.
+
 ## Network Access
 
 The application is configured to accept connections from the local network:
 
 - **HTTP**: `http://your-pi-ip:3000`
 - **HTTPS**: `https://your-pi-ip:3000` (if SSL certificates are configured)
+- **WebSocket**: Automatically available on the same port for real-time update status
 
 ### Finding Your Pi's IP Address
 
@@ -534,7 +579,27 @@ sudo systemctl start spectrabox
 
 ## Updates
 
-### Application Updates
+### Server Self-Update (Recommended)
+
+SpectraBox includes a built-in self-update system accessible through the web interface:
+
+1. Navigate to Settings → Server tab
+2. Click "Check for Updates" to see if a newer version is available
+3. Click "Update Now" to automatically update the server
+4. The system will restart automatically when the update is complete
+
+The self-update system:
+- Checks GitHub for the latest release or commit
+- Downloads and installs updates automatically
+- Handles service restart and verification
+- Provides real-time progress updates
+- Includes error handling and recovery
+
+For detailed information, see [Version Management Documentation](docs/VERSION_MANAGEMENT.md).
+
+### Manual Application Updates
+
+If you prefer manual updates:
 
 ```bash
 cd /home/pi/spectrabox
@@ -550,19 +615,14 @@ sudo apt update && sudo apt upgrade -y
 sudo reboot
 ```
 
-### Automated Updates (Optional)
+### Version Management
 
-Create a simple update script:
-```bash
-#!/bin/bash
-# Save as /home/pi/update-spectrabox.sh
+The application tracks its version through a `Version.txt` file in the root directory. This file is automatically created during deployment and updated during the self-update process.
 
-cd /home/pi/spectrabox
-git pull origin main
-npm ci --only=production
-sudo systemctl restart spectrabox
-echo "SpectraBox updated successfully"
-```
+Current version can be checked via:
+- Web interface: Settings → Server tab
+- API endpoint: `GET /api/version`
+- Command line: `cat /home/pi/spectrabox/Version.txt`
 
 ## Support
 

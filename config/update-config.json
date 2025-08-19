@@ -1,0 +1,33 @@
+{
+  "github": {
+    "owner": "newowner",
+    "repository": "newrepo",
+    "apiUrl": "https://api.github.com",
+    "rateLimitCacheTimeout": 300000
+  },
+  "update": {
+    "enabled": false,
+    "checkInterval": 3600000,
+    "autoUpdate": false,
+    "updateScript": "./scripts/spectrabox-kiosk-install.sh",
+    "backupBeforeUpdate": true,
+    "maxUpdateAttempts": 3,
+    "updateTimeout": 600000
+  },
+  "version": {
+    "filePath": "./Version.txt",
+    "format": "semantic",
+    "fallbackValue": "unknown"
+  },
+  "security": {
+    "validateVersionStrings": true,
+    "maxVersionLength": 50,
+    "allowedVersionPatterns": [
+      "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.-]+)?$",
+      "^v?\\d+\\.\\d+(\\.\\d+)?$",
+      "^[a-f0-9]{7,40}$",
+      "^\\d{4}\\.\\d{2}\\.\\d{2}$",
+      "^[a-zA-Z0-9.-]+$"
+    ]
+  }
+}

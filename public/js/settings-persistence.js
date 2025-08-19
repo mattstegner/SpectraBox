@@ -28,6 +28,7 @@ class SettingsManager {
     this.isLoading = false;
     
     // UI control mappings for each settings category
+    // Note: Server tab is excluded as it contains action buttons, not persistent settings
     this.controlMappings = {
       general: {
         minFrequency: { element: 'minFreqSlider', type: 'number', display: 'minFreqValue', formatter: (v) => `${v} Hz` },
@@ -487,11 +488,52 @@ class SettingsManager {
       missingCount++;
     }
 
+    // Set up Server tab integration
+    this.setupServerTabIntegration();
+
     console.log(`Settings event listeners attached: ${attachedCount} controls, ${missingCount} missing`);
     
     // Warn if many controls are missing
     if (missingCount > 0) {
       console.warn(`${missingCount} settings controls were not found in the DOM. Settings persistence may be incomplete.`);
+    }
+  }
+
+  /**
+   * Set up Server tab integration with existing tab switching logic
+   * Ensures ServerManager is properly initialized when Server tab is accessed
+   */
+  setupServerTabIntegration() {
+    // Find the Server tab button
+    const serverTab = document.querySelector('.settings-tab[data-tab="server"]');
+    if (!serverTab) {
+      console.warn('Server tab not found in DOM');
+      return;
+    }
+
+    // Add event listener to ensure ServerManager is initialized when Server tab is clicked
+    // This works cooperatively with the existing tab switching in spectrogram.js
+    serverTab.addEventListener('click', () => {
+      // Use setTimeout to ensure this runs after the tab switching logic
+      setTimeout(() => {
+        this.ensureServerManagerInitialized();
+      }, 150); // Slightly longer delay than spectrum-analyzer-integration.js
+    });
+
+    console.log('Server tab integration set up successfully');
+  }
+
+  /**
+   * Ensure ServerManager is initialized when Server tab is accessed
+   */
+  ensureServerManagerInitialized() {
+    if (window.serverManager && !window.serverManager.isInitialized) {
+      console.log('Initializing ServerManager from settings persistence system');
+      window.serverManager.initialize().catch(error => {
+        console.error('Failed to initialize ServerManager:', error);
+      });
+    } else if (!window.serverManager) {
+      console.warn('ServerManager not found on window object');
     }
   }
 
@@ -719,6 +761,31 @@ class SettingsManager {
 
     // Deep comparison of settings objects
     return !this.deepEqual(currentSettings, this.currentSettings);
+  }
+
+  /**
+   * Check if Server tab is currently active
+   * @returns {boolean} True if Server tab is active
+   */
+  isServerTabActive() {
+    const serverTab = document.querySelector('.settings-tab[data-tab="server"]');
+    const serverPage = document.getElementById('server-page');
+    return serverTab && serverTab.classList.contains('active') && 
+           serverPage && serverPage.classList.contains('active');
+  }
+
+  /**
+   * Get information about Server tab integration status
+   * @returns {object} Server tab integration status
+   */
+  getServerTabStatus() {
+    return {
+      tabExists: !!document.querySelector('.settings-tab[data-tab="server"]'),
+      pageExists: !!document.getElementById('server-page'),
+      isActive: this.isServerTabActive(),
+      serverManagerExists: !!window.serverManager,
+      serverManagerInitialized: window.serverManager ? window.serverManager.isInitialized : false
+    };
   }
 
   /**
