@@ -1,511 +1,487 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# SpectraBox - Complete Deployment Script for Raspberry Pi
-# This script handles the complete setup from source code to running kiosk
-# 
-# Usage: curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh | bash
-# Or: wget -O - https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh | bash
+# =========================================================
+# SpectraBox Kiosk Installer (Debian + Raspberry Pi OS)
+# - Installs Node.js
+# - Installs browser (Chromium/Chromium-browser/Firefox ESR fallback)
+# - Clones SpectraBox
+# - Generates HTTPS certs (for persistent mic permissions)
+# - Creates systemd service
+# - Configures kiosk autostart (LXDE/desktop session)
+# - Adapts automatically on Debian vs Raspberry Pi OS
+# =========================================================
 
-# More lenient error handling - continue on non-critical errors
-set -e  # Exit on any error
-set +e  # Temporarily disable exit on error for compatibility checks
-
-# Ensure we have a proper shell environment
-export LANG=C
-export LC_ALL=C
-
-# Re-enable strict error handling for critical sections
-set -e
-
-echo "🚀 SpectraBox - Complete Deployment Script"
-echo "=========================================="
-echo "This script will set up the complete SpectraBox system"
-echo ""
-
-# Configuration
+# ---------- Config (edit if needed) ----------
+PI_USER="${SUDO_USER:-${USER}}"
+PI_HOME="$(getent passwd "$PI_USER" | cut -d: -f6)"
+APP_DIR="$PI_HOME/spectrabox"
 REPO_URL="https://github.com/mattstegner/SpectraBox.git"
-APP_NAME="spectrabox"
-APP_USER="pi"
-APP_DIR="/home/pi/spectrabox"
-SERVICE_FILE="spectrabox.service"
-NODE_VERSION="18"
+SERVICE_NAME="spectrabox"
+PORT="3000"
+NODE_MAJOR="18"     # Node LTS track to install if missing
+MEM_MAX="512M"
+CPU_QUOTA="80%"
+# --------------------------------------------
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+banner() { echo -e "\n\033[1;36m==> $*\033[0m"; }
+ok()     { echo -e "\033[1;32m✔ $*\033[0m"; }
+warn()   { echo -e "\033[1;33m! $*\033[0m"; }
+err()    { echo -e "\033[1;31m✖ $*\033[0m"; }
+step()   { echo -e "   - $*"; }
 
-# Helper functions
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1" 2>/dev/null || printf "[INFO] %s\n" "$1"
-}
-
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1" 2>/dev/null || printf "[WARN] %s\n" "$1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1" 2>/dev/null || printf "[ERROR] %s\n" "$1"
-}
-
-log_step() {
-    echo -e "${BLUE}[STEP]${NC} $1" 2>/dev/null || printf "[STEP] %s\n" "$1"
-}
-
-# Safe echo function to handle potential issues
-safe_echo() {
-    echo "$@" 2>/dev/null || printf "%s\n" "$*" 2>/dev/null || true
-}
-
-# Check if running as root
-if [ "$EUID" -eq 0 ]; then
-    log_error "Please do not run this script as root. Run as the pi user."
-    log_info "Usage: curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh | bash"
+require_root() {
+  if [[ "$EUID" -ne 0 ]]; then
+    err "Please run as root: sudo bash $0"
     exit 1
-fi
+  fi
+}
 
-# Check if running as pi user
-if [ "$USER" != "pi" ]; then
-    log_warn "This script is designed to run as the 'pi' user. Current user: $USER"
-    log_info "Continuing anyway, but some features may not work correctly."
-fi
+trap 'err "Install failed. Check the logs above."' ERR
+require_root
 
-# Check if running on Raspberry Pi
-if ! grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null; then
-    log_warn "This script is designed for Raspberry Pi. Continuing anyway..."
-fi
+banner "SpectraBox Kiosk Installer"
+step "Target user: $PI_USER"
+step "Home dir   : $PI_HOME"
+step "App dir    : $APP_DIR"
 
-# Confirm installation
-echo "This script will:"
-echo "  1. Update system packages"
-echo "  2. Install Node.js $NODE_VERSION"
-echo "  3. Install audio system dependencies"
-echo "  4. Clone the SpectraBox repository"
-echo "  5. Install application dependencies"
-echo "  6. Generate SSL certificates"
-echo "  7. Set up systemd service"
-echo "  8. Configure kiosk mode"
-echo "  9. Start the application"
-echo ""
-read -p "Do you want to continue? (y/N): " -n 1 -r
-# Handle potential echo issues with multiple approaches
-{ echo ""; } 2>/dev/null || { printf "\n"; } 2>/dev/null || true
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    log_info "Installation cancelled."
-    exit 0
-fi
+# ---------------------------------------------------------
+banner "1) System update & base packages"
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get upgrade -y
+apt-get install -y --no-install-recommends \
+  ca-certificates curl wget git jq xdg-utils \
+  xdotool unclutter \
+  libnss3 libatk1.0-0 libxss1 libasound2 \
+  libgtk-3-0 libgdk-pixbuf2.0-0 libxcomposite1 \
+  libxcursor1 libxdamage1 libxrandr2 libgbm1 \
+  libxkbcommon0 libatspi2.0-0 \
+  alsa-utils openssl
 
-log_info "Starting complete deployment process..."
+ok "System packages installed/updated"
 
-# =============================================================================
-# PRELIMINARY CHECKS
-# =============================================================================
-log_step "Performing preliminary checks..."
+# ---------------------------------------------------------
+banner "2) Audio stack: Ensure audio system compatibility"
+# Install audio packages but preserve existing audio system
+apt-get install -y --no-install-recommends \
+  pipewire-audio wireplumber libspa-0.2-bluetooth
 
-# Check available disk space (need at least 1GB)
-AVAILABLE_SPACE=$(df / | awk 'NR==2 {print $4}')
-if [ "$AVAILABLE_SPACE" -lt 1048576 ]; then
-    log_error "Insufficient disk space. Need at least 1GB free space."
-    log_info "Available: $(df -h / | awk 'NR==2 {print $4}')"
-    exit 1
-fi
-
-# Check internet connectivity
-if ! ping -c 1 google.com &> /dev/null; then
-    log_error "No internet connection detected. Please check your network."
-    exit 1
-fi
-
-log_info "✓ Disk space: $(df -h / | awk 'NR==2 {print $4}') available"
-log_info "✓ Internet connectivity: OK"
-
-# =============================================================================
-# STEP 1: System Update and Dependencies
-# =============================================================================
-log_step "1. Updating system packages..."
-sudo apt update
-sudo apt upgrade -y
-
-# =============================================================================
-# STEP 2: Install Node.js
-# =============================================================================
-log_step "2. Installing Node.js..."
-if ! command -v node &> /dev/null; then
-    log_info "Installing Node.js ${NODE_VERSION}..."
-    # Download to temp file first to avoid pipe issues
-    TEMP_SETUP=$(mktemp)
-    if curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" -o "$TEMP_SETUP"; then
-        sudo -E bash "$TEMP_SETUP"
-        rm -f "$TEMP_SETUP"
-        sudo apt-get install -y nodejs
-    else
-        log_error "Failed to download Node.js setup script"
-        rm -f "$TEMP_SETUP"
-        exit 1
-    fi
+# Only remove PulseAudio if PipeWire is explicitly requested
+if [[ "${FORCE_PIPEWIRE:-}" == "true" ]]; then
+  apt-get purge -y pulseaudio pulseaudio-utils || true
+  step "PulseAudio removed (FORCE_PIPEWIRE=true)"
 else
-    CURRENT_NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-    if [ "$CURRENT_NODE_VERSION" -lt "$NODE_VERSION" ]; then
-        log_info "Upgrading Node.js from v$CURRENT_NODE_VERSION to v${NODE_VERSION}..."
-        # Download to temp file first to avoid pipe issues
-        TEMP_SETUP=$(mktemp)
-        if curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" -o "$TEMP_SETUP"; then
-            sudo -E bash "$TEMP_SETUP"
-            rm -f "$TEMP_SETUP"
-            sudo apt-get install -y nodejs
-        else
-            log_error "Failed to download Node.js setup script"
-            rm -f "$TEMP_SETUP"
-            exit 1
-        fi
-    else
-        log_info "Node.js is already installed: $(node --version)"
-    fi
+  step "Keeping existing audio system, PipeWire available as alternative"
 fi
 
-# Verify Node.js installation
-if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
-    log_error "Node.js installation failed"
-    exit 1
+# Ensure the kiosk user is in audio/video groups
+usermod -aG audio,video "$PI_USER" || true
+
+# Enable user services for PipeWire (make persistent even before first login)
+loginctl enable-linger "$PI_USER" || true
+sudo -u "$PI_USER" systemctl --user enable pipewire pipewire-pulse wireplumber || true
+# Don't try to --now here; it may fail without an active user session. Runtime wait happens in start-kiosk.sh.
+ok "Audio system configured for microphone access"
+
+# ---------------------------------------------------------
+banner "3) Install Node.js ${NODE_MAJOR}.x (NodeSource if needed)"
+if ! command -v node >/dev/null 2>&1 || ! node -v | grep -qE "^v${NODE_MAJOR}\."; then
+  curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
+  apt-get install -y nodejs
+fi
+step "Node: $(node -v 2>/dev/null || echo 'not found')"
+step "npm : $(npm -v 2>/dev/null || echo 'not found')"
+ok "Node.js ready"
+
+# ---------------------------------------------------------
+banner "4) Choose and install browser (Chromium/Firefox fallback)"
+# CHANGE 1: package detection (chromium vs chromium-browser; firefox-esr fallback)
+pkg_exists() { apt-cache show "$1" 2>/dev/null | grep -q '^Package:'; }
+
+BROWSER_PKG=""
+if pkg_exists chromium; then
+  BROWSER_PKG="chromium"
+elif pkg_exists chromium-browser; then
+  BROWSER_PKG="chromium-browser"
+elif pkg_exists firefox-esr; then
+  BROWSER_PKG="firefox-esr"
+else
+  err "No supported browser package found in APT (chromium/chromium-browser/firefox-esr)."
+fi
+apt-get install -y "$BROWSER_PKG"
+
+# Resolve the runtime binary
+BROWSER_BIN="$(command -v chromium || true)"
+BROWSER_BIN="${BROWSER_BIN:-$(command -v chromium-browser || true)}"
+BROWSER_BIN="${BROWSER_BIN:-$(command -v firefox-esr || true)}"
+
+if [[ -z "${BROWSER_BIN}" ]]; then
+  err "Unable to locate browser binary after install."
 fi
 
-log_info "Node.js version: $(node --version)"
-log_info "npm version: $(npm --version)"
+step "Browser package: ${BROWSER_PKG}"
+step "Browser binary : ${BROWSER_BIN}"
+ok "Browser installed"
 
-# =============================================================================
-# STEP 3: Install Audio Dependencies
-# =============================================================================
-log_step "3. Installing audio system dependencies..."
-sudo apt install -y alsa-utils pulseaudio pulseaudio-utils
-
-# =============================================================================
-# STEP 4: Install Kiosk Dependencies
-# =============================================================================
-log_step "4. Installing kiosk mode dependencies..."
-sudo apt install -y chromium-browser unclutter xdotool
-
-# =============================================================================
-# STEP 5: Clone Repository
-# =============================================================================
-log_step "5. Cloning SpectraBox repository..."
-
-# Remove existing directory if it exists
-if [ -d "$APP_DIR" ]; then
-    log_warn "Existing installation found at $APP_DIR"
-    read -p "Do you want to remove it and start fresh? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        log_info "Removing existing installation..."
-        rm -rf "$APP_DIR"
-    else
-        log_info "Keeping existing installation. Pulling latest changes..."
-        cd "$APP_DIR"
-        git pull origin main || {
-            log_error "Failed to update existing repository"
-            exit 1
-        }
-    fi
+# ---------------------------------------------------------
+banner "5) Clone or update SpectraBox repo"
+if [[ -d "$APP_DIR/.git" ]]; then
+  step "Repo exists, pulling latest..."
+  sudo -u "$PI_USER" git -C "$APP_DIR" pull --ff-only
+else
+  step "Cloning fresh repo to $APP_DIR"
+  sudo -u "$PI_USER" git clone "$REPO_URL" "$APP_DIR"
 fi
+ok "Repository ready"
 
-# Clone repository if directory doesn't exist
-if [ ! -d "$APP_DIR" ]; then
-    log_info "Cloning repository from $REPO_URL..."
-    git clone "$REPO_URL" "$APP_DIR" || {
-        log_error "Failed to clone repository"
-        exit 1
-    }
-fi
-
+# ---------------------------------------------------------
+banner "6) Install app dependencies (production)"
 cd "$APP_DIR"
-
-# =============================================================================
-# STEP 6: Install Application Dependencies
-# =============================================================================
-log_step "6. Installing application dependencies..."
-log_info "Installing Node.js dependencies (this may take a few minutes)..."
-npm ci --only=production || {
-    log_error "Failed to install Node.js dependencies"
-    exit 1
-}
-
-# =============================================================================
-# STEP 7: Generate SSL Certificates
-# =============================================================================
-log_step "7. Generating SSL certificates..."
-if [ ! -f "$APP_DIR/ssl/cert.pem" ]; then
-    log_info "Generating SSL certificates for HTTPS support..."
-    mkdir -p "$APP_DIR/ssl"
-    node generate-ssl.js || {
-        log_warn "Failed to generate SSL certificates. HTTPS may not work."
-    }
+if [[ -f package-lock.json ]]; then
+  sudo -u "$PI_USER" npm ci --only=production
 else
-    log_info "SSL certificates already exist"
+  sudo -u "$PI_USER" npm install --only=production
+fi
+ok "Node dependencies installed"
+
+# Initialize configuration files
+if [[ -f "$APP_DIR/scripts/init-config.js" ]]; then
+  step "Initializing configuration files"
+  sudo -u "$PI_USER" node "$APP_DIR/scripts/init-config.js"
+else
+  step "Configuration initialization script not found, skipping"
 fi
 
-# =============================================================================
-# STEP 8: Set Up Systemd Service
-# =============================================================================
-log_step "8. Setting up systemd service..."
+# ---------------------------------------------------------
+banner "7) Ensure Version.txt file exists and is properly managed"
+VERSION_FILE="$APP_DIR/Version.txt"
+if [[ ! -f "$VERSION_FILE" ]]; then
+  step "Creating Version.txt file with current version"
+  # Try to get version from package.json, fallback to git, then default
+  if [[ -f "$APP_DIR/package.json" ]] && command -v jq >/dev/null 2>&1; then
+    VERSION=$(jq -r '.version // "1.0.0"' "$APP_DIR/package.json")
+  elif [[ -d "$APP_DIR/.git" ]] && command -v git >/dev/null 2>&1; then
+    VERSION=$(cd "$APP_DIR" && git describe --tags --always --dirty 2>/dev/null || echo "1.0.0")
+  else
+    VERSION="1.0.0"
+  fi
+  echo "$VERSION" > "$VERSION_FILE"
+  chown "$PI_USER:$PI_USER" "$VERSION_FILE"
+  step "Version.txt created with version: $VERSION"
+else
+  step "Version.txt already exists: $(cat "$VERSION_FILE" 2>/dev/null || echo 'unreadable')"
+fi
+ok "Version file ready"
 
-# Set proper permissions
-log_info "Setting file permissions..."
-sudo chown -R $APP_USER:$APP_USER "$APP_DIR"
-chmod +x "$APP_DIR/scripts/"*.sh 2>/dev/null || true
-chmod +x "$APP_DIR/start-kiosk.js" 2>/dev/null || true
+# ---------------------------------------------------------
+banner "8) Generate HTTPS certs (for persistent mic permission)"
+CERT_DIR="$APP_DIR/certs"
+mkdir -p "$CERT_DIR"
+chown -R "$PI_USER:$PI_USER" "$CERT_DIR"
 
-# Install systemd service
-log_info "Installing systemd service..."
-sudo cp "$SERVICE_FILE" /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable "$APP_NAME"
+# If repo provides a generator, prefer that. Otherwise create self-signed localhost certs.
+if [[ -f "$APP_DIR/generate-ssl.js" ]]; then
+  step "Found generate-ssl.js; using it"
+  sudo -u "$PI_USER" node "$APP_DIR/generate-ssl.js" || warn "generate-ssl.js failed; using openssl fallback"
+fi
 
-# Create log directory
-log_info "Creating log directory..."
-sudo mkdir -p /var/log/spectrabox
-sudo chown $APP_USER:$APP_USER /var/log/spectrabox
+if [[ ! -f "$CERT_DIR/server.key" || ! -f "$CERT_DIR/server.crt" ]]; then
+  step "Creating self-signed cert with openssl (CN=localhost)"
+  openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
+    -keyout "$CERT_DIR/server.key" \
+    -out "$CERT_DIR/server.crt" \
+    -subj "/CN=localhost"
+  chown "$PI_USER:$PI_USER" "$CERT_DIR/server.key" "$CERT_DIR/server.crt"
+fi
+ok "TLS certificates ready"
 
-# =============================================================================
-# STEP 9: Configure Kiosk Mode
-# =============================================================================
-log_step "9. Configuring kiosk mode..."
+# ---------------------------------------------------------
+banner "9) Create systemd service for SpectraBox"
 
-# Create kiosk startup script
-log_info "Creating kiosk startup script..."
-cat > /home/pi/start-kiosk.sh << 'EOF'
-#!/bin/bash
+# Decide ExecStart: prefer npm start if defined; fallback to server.js
+EXEC_START=""
+if [[ -f package.json ]] && jq -e '.scripts.start' package.json >/dev/null 2>&1; then
+  EXEC_START="/usr/bin/npm start --silent"
+elif [[ -f server.js ]]; then
+  EXEC_START="/usr/bin/node ${APP_DIR}/server.js"
+else
+  err "No start script or server.js found. Please ensure the repo includes one."
+fi
 
-# SpectraBox - Kiosk Mode Startup Script
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+cat > "$SERVICE_FILE" <<EOF
+[Unit]
+Description=SpectraBox Node Server
+After=network-online.target
+Wants=network-online.target
 
-# Wait for the desktop to load
-sleep 10
+[Service]
+Type=simple
+User=${PI_USER}
+WorkingDirectory=${APP_DIR}
+Environment=NODE_ENV=production
+Environment=PORT=${PORT}
+Environment=HOST=0.0.0.0
+Environment=LOG_LEVEL=info
+Environment=NODE_OPTIONS=--max-old-space-size=256
+ExecStart=${EXEC_START}
+Restart=always
+RestartSec=3
 
-# Hide mouse cursor
-unclutter -idle 0.5 -root &
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+MemoryMax=${MEM_MAX}
+CPUQuota=${CPU_QUOTA}
 
-# Disable screen blanking
-xset s noblank
-xset s off
-xset -dpms
-
-# Start Chromium in kiosk mode
-chromium-browser \
-  --noerrdialogs \
-  --disable-infobars \
-  --disable-session-crashed-bubble \
-  --disable-component-extensions-with-background-pages \
-  --disable-background-networking \
-  --disable-background-timer-throttling \
-  --disable-renderer-backgrounding \
-  --disable-backgrounding-occluded-windows \
-  --disable-client-side-phishing-detection \
-  --disable-default-apps \
-  --disable-dev-shm-usage \
-  --disable-extensions \
-  --disable-features=TranslateUI \
-  --disable-hang-monitor \
-  --disable-ipc-flooding-protection \
-  --disable-popup-blocking \
-  --disable-prompt-on-repost \
-  --disable-sync \
-  --disable-translate \
-  --disable-web-security \
-  --metrics-recording-only \
-  --no-first-run \
-  --no-default-browser-check \
-  --password-store=basic \
-  --use-mock-keychain \
-  --kiosk \
-  --autoplay-policy=no-user-gesture-required \
-  --allow-running-insecure-content \
-  --disable-features=VizDisplayCompositor \
-  --start-fullscreen \
-  --ignore-certificate-errors \
-  --ignore-ssl-errors \
-  --ignore-certificate-errors-spki-list \
-  http://localhost:3000
+[Install]
+WantedBy=multi-user.target
 EOF
 
-chmod +x /home/pi/start-kiosk.sh
+systemctl daemon-reload
+systemctl enable "${SERVICE_NAME}"
+systemctl restart "${SERVICE_NAME}"
+sleep 2 || true
+systemctl --no-pager --full status "${SERVICE_NAME}" || true
+ok "Systemd service enabled & started"
 
-# Configure autostart
-log_info "Configuring autostart..."
-mkdir -p /home/pi/.config/autostart
+# ---------------------------------------------------------
+banner "10) Configure Desktop autologin / GUI boot (Pi OS if available)"
+if command -v raspi-config >/dev/null 2>&1; then
+  # B4 = Desktop autologin (older raspi-config nomenclature)
+  raspi-config nonint do_boot_behaviour B4 || true
+  ok "raspi-config set to Desktop (autologin)"
+else
+  warn "raspi-config not present (likely plain Debian). Skipping Pi-specific boot settings."
+  # If a desktop exists, ensure graphical target (harmless if no DE)
+  systemctl set-default graphical.target || true
+fi
 
-cat > /home/pi/.config/autostart/kiosk.desktop << 'EOF'
+# ---------------------------------------------------------
+banner "11) Chromium policy: allow mic for localhost"
+install -d /etc/chromium/policies/managed /etc/opt/chrome/policies/managed
+cat >/etc/chromium/policies/managed/kiosk-mic.json <<EOF
+{
+  "AudioCaptureAllowed": true,
+  "AudioCaptureAllowedUrls": [
+    "https://localhost:${PORT}",
+    "http://localhost:${PORT}",
+    "https://localhost:3000",
+    "http://localhost:3000"
+  ],
+  "DefaultMediaStreamSetting": 1,
+  "MediaStreamMicrophoneAllowedUrls": [
+    "https://localhost:${PORT}",
+    "http://localhost:${PORT}",
+    "https://localhost:3000",
+    "http://localhost:3000"
+  ],
+  "AutoSelectCertificateForUrls": [
+    {
+      "pattern": "https://localhost:${PORT}",
+      "filter": {}
+    }
+  ]
+}
+EOF
+# Copy to Chrome path too (harmless if missing)
+cp /etc/chromium/policies/managed/kiosk-mic.json /etc/opt/chrome/policies/managed/kiosk-mic.json 2>/dev/null || true
+ok "Chromium policy installed with enhanced microphone permissions"
+
+# ---------------------------------------------------------
+banner "12) Create kiosk launcher scripts & autostart entry"
+
+START_KIOSK="$PI_HOME/start-kiosk.sh"
+EXIT_KIOSK="$PI_HOME/exit-kiosk.sh"
+AUTOSTART_DIR="$PI_HOME/.config/autostart"
+OPENBOX_DIR="$PI_HOME/.config/openbox"
+CHROME_DATA_DIR="$PI_HOME/.config/spectrabox-chrome"
+KIOSK_DESKTOP="$AUTOSTART_DIR/kiosk.desktop"
+OPENBOX_RC="$OPENBOX_DIR/lxde-pi-rc.xml"
+
+# Prefer HTTPS if certs exist
+URL="http://localhost:${PORT}"
+if [[ -f "$CERT_DIR/server.crt" && -f "$CERT_DIR/server.key" ]]; then
+  URL="https://localhost:${PORT}"
+fi
+
+install -d -m 755 "$AUTOSTART_DIR" "$OPENBOX_DIR" "$CHROME_DATA_DIR"
+chown -R "$PI_USER:$PI_USER" "$CHROME_DATA_DIR"
+
+# CHANGE 3: use the detected browser binary; wait for audio + server
+cat > "$START_KIOSK" <<EOS
+#!/usr/bin/env bash
+set -e
+set -u
+set -o pipefail
+export DISPLAY=\${DISPLAY:-:0}
+
+# Disable blanking / power management
+xset s off || true
+xset -dpms || true
+xset s noblank || true
+
+# Hide mouse after idle
+unclutter -idle 0.5 -root >/dev/null 2>&1 &
+
+URL="${URL}"
+BROWSER_BIN="${BROWSER_BIN}"
+
+# ---- Wait for audio server (PipeWire or Pulse shim) ----
+for i in {1..20}; do
+  if command -v wpctl >/dev/null 2>&1; then
+    if wpctl status >/dev/null 2>&1; then break; fi
+  elif command -v pactl >/dev/null 2>&1; then
+    if pactl info >/dev/null 2>&1; then break; fi
+  fi
+  sleep 1
+done
+
+# ---- Wait for SpectraBox to respond (up to 60s) ----
+for i in {1..60}; do
+  if command -v curl >/dev/null 2>&1 && curl -sk --max-time 1 "\${URL}/api/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+# Chromium vs Firefox flags
+if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
+  EXTRA_HTTP_FLAG=""
+  if [[ "\${URL}" =~ ^http:// ]]; then
+    EXTRA_HTTP_FLAG="--unsafely-treat-insecure-origin-as-secure=\${URL}"
+  fi
+  
+  # Create user data directory if it doesn't exist
+  mkdir -p "\${PI_HOME}/.config/spectrabox-chrome"
+  
+  exec "\${BROWSER_BIN}" \\
+    --kiosk "\${URL}" \\
+    --noerrdialogs \\
+    --disable-session-crashed-bubble \\
+    --disable-infobars \\
+    --disable-translate \\
+    --disable-features=TranslateUI \\
+    --autoplay-policy=no-user-gesture-required \\
+    --ignore-certificate-errors \\
+    --ignore-ssl-errors \\
+    --start-maximized \\
+    --user-data-dir="\${PI_HOME}/.config/spectrabox-chrome" \\
+    --allow-running-insecure-content \\
+    --use-fake-device-for-media-stream=false \\
+    --enable-features=HardwareMediaKeyHandling \\
+    --no-sandbox \\
+    --disable-dev-shm-usage \\
+    --disable-gpu-sandbox \\
+    \${EXTRA_HTTP_FLAG}
+else
+  # Firefox ESR fallback
+  exec "\${BROWSER_BIN}" \\
+    --kiosk "\${URL}"
+fi
+EOS
+chmod +x "$START_KIOSK"
+chown "$PI_USER:$PI_USER" "$START_KIOSK"
+
+cat > "$EXIT_KIOSK" <<'EOS'
+#!/usr/bin/env bash
+pkill -f chromium || true
+pkill -f chromium-browser || true
+pkill -f firefox-esr || true
+EOS
+chmod +x "$EXIT_KIOSK"
+chown "$PI_USER:$PI_USER" "$EXIT_KIOSK"
+
+# Create debug script for troubleshooting
+DEBUG_KIOSK="$PI_HOME/debug-kiosk.sh"
+cat > "$DEBUG_KIOSK" <<EOS
+#!/usr/bin/env bash
+# Debug script for troubleshooting Chromium launch issues
+echo "=== Chromium Debug Information ==="
+echo "Browser binary: ${BROWSER_BIN}"
+echo "URL: ${URL}"
+echo "User data dir: \${PI_HOME}/.config/spectrabox-chrome"
+echo ""
+echo "=== Testing browser launch with verbose output ==="
+export DISPLAY=\${DISPLAY:-:0}
+
+# Test basic chromium launch
+echo "Testing: \${BROWSER_BIN} --version"
+"${BROWSER_BIN}" --version || echo "Version check failed"
+
+echo ""
+echo "Testing: \${BROWSER_BIN} --help | head -10"
+"${BROWSER_BIN}" --help | head -10 || echo "Help check failed"
+
+echo ""
+echo "=== Attempting kiosk launch with debug output ==="
+"${BROWSER_BIN}" \\
+  --kiosk "${URL}" \\
+  --user-data-dir="\${PI_HOME}/.config/spectrabox-chrome" \\
+  --no-sandbox \\
+  --disable-dev-shm-usage \\
+  --disable-gpu-sandbox \\
+  --enable-logging=stderr \\
+  --v=1
+EOS
+chmod +x "$DEBUG_KIOSK"
+chown "$PI_USER:$PI_USER" "$DEBUG_KIOSK"
+
+cat > "$KIOSK_DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
-Name=SpectraBox
-Comment=Start SpectraBox in kiosk mode
-Icon=chromium-browser
-Exec=/home/pi/start-kiosk.sh
-Hidden=false
-NoDisplay=false
+Name=SpectraBox Kiosk
+Exec=${START_KIOSK}
 X-GNOME-Autostart-enabled=true
 EOF
+chown -R "$PI_USER:$PI_USER" "$AUTOSTART_DIR"
 
-# Configure boot to desktop
-log_info "Configuring boot to desktop..."
-sudo raspi-config nonint do_boot_behaviour B4
-
-# Disable screen saver in LXDE
-log_info "Disabling screen saver..."
-mkdir -p /home/pi/.config/lxsession/LXDE-pi
-cat > /home/pi/.config/lxsession/LXDE-pi/autostart << 'EOF'
-@lxpanel --profile LXDE-pi
-@pcmanfm --desktop --profile LXDE-pi
-@xscreensaver -no-splash
-@point-rpi
-@/home/pi/start-kiosk.sh
-EOF
-
-# Create recovery script
-log_info "Creating recovery script..."
-cat > /home/pi/exit-kiosk.sh << 'EOF'
-#!/bin/bash
-
-# SpectraBox - Exit Kiosk Mode Script
-# Use this script to exit kiosk mode and return to desktop
-
-echo "Exiting kiosk mode..."
-
-# Kill Chromium
-pkill -f chromium-browser
-
-# Kill unclutter
-pkill -f unclutter
-
-# Re-enable screen blanking
-xset s blank
-xset s on
-xset +dpms
-
-echo "Kiosk mode exited. You can now use the desktop normally."
-echo "To restart kiosk mode, run: /home/pi/start-kiosk.sh"
-EOF
-
-chmod +x /home/pi/exit-kiosk.sh
-
-# Set up keyboard shortcut for emergency exit
-log_info "Setting up emergency exit shortcut (Ctrl+Alt+X)..."
-mkdir -p /home/pi/.config/openbox
-cat > /home/pi/.config/openbox/lxde-pi-rc.xml << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<openbox_config xmlns="http://openbox.org/3.4/rc" xmlns:xi="http://www.w3.org/2001/XInclude">
+# Emergency exit keybinding (Ctrl+Alt+X) for Openbox/LXDE
+if [[ ! -f "$OPENBOX_RC" ]]; then
+  cat > "$OPENBOX_RC" <<'EOF'
+<openbox_config>
   <keyboard>
     <keybind key="C-A-x">
-      <action name="Execute">
-        <command>/home/pi/exit-kiosk.sh</command>
-      </action>
+      <action name="Execute"><command>/bin/bash -lc "$HOME/exit-kiosk.sh"</command></action>
     </keybind>
   </keyboard>
 </openbox_config>
 EOF
+  chown -R "$PI_USER:$PI_USER" "$OPENBOX_DIR"
+fi
+ok "Kiosk autostart configured"
 
-# =============================================================================
-# STEP 10: Test Application
-# =============================================================================
-log_step "10. Testing application..."
-log_info "Testing application startup..."
+# ---------------------------------------------------------
+banner "13) Permissions & logs"
+mkdir -p /var/log/spectrabox
+chown "$PI_USER:$PI_USER" /var/log/spectrabox
+chown -R "$PI_USER:$PI_USER" "$APP_DIR"
+ok "Ownership & log dir applied"
 
-# Test the application briefly
-timeout 10s node server.js &
-TEST_PID=$!
-sleep 5
-
-if kill -0 $TEST_PID 2>/dev/null; then
-    log_info "✓ Application test successful"
-    kill $TEST_PID
-    wait $TEST_PID 2>/dev/null || true
+# ---------------------------------------------------------
+banner "14) Quick health check"
+if command -v curl >/dev/null 2>&1 && \
+   (curl -sk "http://localhost:${PORT}/api/health" >/dev/null 2>&1 || \
+    curl -sk "https://localhost:${PORT}/api/health" >/dev/null 2>&1); then
+  ok "Server responded to /api/health"
 else
-    log_error "✗ Application failed to start during test"
-    exit 1
+  warn "Server not responding yet—systemd may still be starting it (or endpoint not present)."
 fi
 
-# =============================================================================
-# STEP 11: Start Services
-# =============================================================================
-log_step "11. Starting services..."
-log_info "Starting the SpectraBox service..."
-sudo systemctl start "$APP_NAME"
+# ---------------------------------------------------------
+banner "15) Final notes"
+echo "  • Service : ${SERVICE_NAME} — status with: sudo systemctl status ${SERVICE_NAME}"
+echo "  • App Dir : ${APP_DIR}"
+echo "  • URL     : ${URL}"
+echo "  • Kiosk   : Autostarts at login; emergency exit Ctrl+Alt+X"
+echo "  • Start/Stop kiosk manually: '${START_KIOSK}' / '${EXIT_KIOSK}'"
+echo "  • Debug Chromium issues: '${DEBUG_KIOSK}'"
 
-# Wait a moment for service to start
-sleep 3
-
-# Check service status
-if sudo systemctl is-active --quiet "$APP_NAME"; then
-    log_info "✓ Service started successfully"
-else
-    log_error "✗ Service failed to start"
-    log_info "Checking service status..."
-    sudo systemctl status "$APP_NAME" --no-pager
-    exit 1
+ok "Install complete. Reboot recommended."
+read -r -p "Reboot now to enter kiosk mode? [Y/n] " ans
+if [[ "${ans:-Y}" =~ ^[Yy]$ ]]; then
+  reboot
 fi
-
-# =============================================================================
-# STEP 12: Final Configuration and Information
-# =============================================================================
-log_step "12. Final setup..."
-
-# Get IP address
-LOCAL_IP=$(hostname -I | awk '{print $1}')
-
-echo ""
-echo "🎉 SpectraBox deployment completed successfully!"
-echo "=================================================="
-echo ""
-echo "✅ Installation Summary:"
-echo "  • Repository cloned to: $APP_DIR"
-echo "  • Node.js version: $(node --version)"
-echo "  • Service: $APP_NAME (enabled and running)"
-echo "  • SSL certificates: $([ -f "$APP_DIR/ssl/cert.pem" ] && echo "Generated" || echo "Not available")"
-echo "  • Kiosk mode: Configured for auto-start"
-echo ""
-echo "🌐 Access Information:"
-echo "  • Local HTTP:  http://localhost:3000"
-echo "  • Local HTTPS: https://localhost:3000"
-if [ -n "$LOCAL_IP" ]; then
-echo "  • Network HTTP:  http://$LOCAL_IP:3000"
-echo "  • Network HTTPS: https://$LOCAL_IP:3000"
-fi
-echo ""
-echo "🖥️  Kiosk Mode:"
-echo "  • Auto-start: Enabled (will start on next boot)"
-echo "  • Manual start: /home/pi/start-kiosk.sh"
-echo "  • Exit kiosk: /home/pi/exit-kiosk.sh"
-echo "  • Emergency exit: Ctrl+Alt+X"
-echo ""
-echo "🔧 Service Management:"
-echo "  • Check status: sudo systemctl status $APP_NAME"
-echo "  • View logs: sudo journalctl -u $APP_NAME -f"
-echo "  • Restart: sudo systemctl restart $APP_NAME"
-echo "  • Stop: sudo systemctl stop $APP_NAME"
-echo ""
-echo "📋 Next Steps:"
-echo "  1. Test the web interface: http://localhost:3000"
-if [ -n "$LOCAL_IP" ]; then
-echo "  2. Test network access: http://$LOCAL_IP:3000"
-fi
-echo "  3. Reboot to test kiosk mode: sudo reboot"
-echo "  4. Configure audio devices through the web interface"
-echo ""
-echo "🔍 Troubleshooting:"
-echo "  • Service logs: sudo journalctl -u $APP_NAME -f"
-echo "  • Test network: $APP_DIR/scripts/test-network-access.sh"
-echo "  • Audio devices: arecord -l"
-echo ""
-
-# Offer to reboot
-echo "The system is ready to use. Kiosk mode will start automatically after reboot."
-read -p "Would you like to reboot now to test kiosk mode? (y/N): " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    log_info "Rebooting system..."
-    sudo reboot
-else
-    log_info "You can reboot later with: sudo reboot"
-    log_info "Or test the application now at: http://localhost:3000"
-fi
-
-log_info "Deployment complete! 🚀"
