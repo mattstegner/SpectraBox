@@ -259,6 +259,47 @@ CURRENT_STEP="Create systemd service"
 if confirm_step "8" "Create systemd service (spectrabox)" "Run app at boot via systemd (npm start or server.js)"; then
   cd "$APP_DIR"
   
+  # Ensure working directory has proper permissions for the service user
+  echo "Setting proper permissions for working directory..."
+  chown -R "${PI_USER}:audio" "$APP_DIR"
+  chmod 755 "$APP_DIR"
+  find "$APP_DIR" -type f -exec chmod 644 {} \;
+  find "$APP_DIR" -type d -exec chmod 755 {} \;
+  chmod +x "$APP_DIR/server.js" 2>/dev/null || true
+  
+  # Verify permissions
+  echo "Verifying working directory permissions..."
+  echo "Directory: $APP_DIR"
+  echo "Owner: $(ls -ld "$APP_DIR" | awk '{print $3}')"
+  echo "Group: $(ls -ld "$APP_DIR" | awk '{print $4}')"
+  echo "Permissions: $(ls -ld "$APP_DIR" | awk '{print $1}')"
+  
+  if [ "$(stat -c %U "$APP_DIR")" != "$PI_USER" ]; then
+    echo "✖ Working directory ownership is incorrect"
+    exit 1
+  fi
+  
+  if [ ! -r "$APP_DIR/server.js" ]; then
+    echo "✖ server.js is not readable in working directory"
+    exit 1
+  fi
+  
+  echo "✔ Working directory permissions verified"
+  
+  # Test if the service user can access the working directory
+  echo "Testing service user access to working directory..."
+  if ! sudo -u "$PI_USER" test -r "$APP_DIR/server.js"; then
+    echo "✖ Service user cannot read server.js"
+    exit 1
+  fi
+  
+  if ! sudo -u "$PI_USER" test -x "$APP_DIR"; then
+    echo "✖ Service user cannot access working directory"
+    exit 1
+  fi
+  
+  echo "✔ Service user access verified"
+  
   # Use the working service configuration from the existing spectrabox.service
   SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
   cat > "$SERVICE_FILE" <<EOF
@@ -286,11 +327,11 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=spectrabox
 
-# Security settings
+# Security settings - adjusted for working directory access
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
+ProtectSystem=false
+ProtectHome=false
 ReadWritePaths=${APP_DIR}
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 
