@@ -28,8 +28,7 @@ const config = {
       '--disable-features=TranslateUI',
       '--autoplay-policy=no-user-gesture-required',
       '--allow-running-insecure-content',
-      '--disable-web-security',
-      '--user-data-dir=/tmp/spectrabox-chrome', // Required for --disable-web-security
+      '--user-data-dir=' + (process.env.HOME || '/home/pi') + '/.config/spectrabox-chrome',
       '--disable-features=VizDisplayCompositor',
       '--start-fullscreen',
       '--no-default-browser-check',
@@ -37,7 +36,9 @@ const config = {
       '--disable-extensions',
       '--ignore-certificate-errors', // For self-signed certificates
       '--ignore-ssl-errors',
-      '--ignore-certificate-errors-spki-list'
+      '--ignore-certificate-errors-spki-list',
+      '--use-fake-device-for-media-stream=false', // Enable real microphone access
+      '--enable-features=HardwareMediaKeyHandling'
     ]
   },
   delays: {

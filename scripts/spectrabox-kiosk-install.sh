@@ -61,11 +61,18 @@ apt-get install -y --no-install-recommends \
 ok "System packages installed/updated"
 
 # ---------------------------------------------------------
-banner "2) Audio stack: PipeWire (avoid Pulse conflicts)"
-# Install PipeWire + WirePlumber and remove PulseAudio if present
+banner "2) Audio stack: Ensure audio system compatibility"
+# Install audio packages but preserve existing audio system
 apt-get install -y --no-install-recommends \
   pipewire-audio wireplumber libspa-0.2-bluetooth
-apt-get purge -y pulseaudio pulseaudio-utils || true
+
+# Only remove PulseAudio if PipeWire is explicitly requested
+if [[ "${FORCE_PIPEWIRE:-}" == "true" ]]; then
+  apt-get purge -y pulseaudio pulseaudio-utils || true
+  step "PulseAudio removed (FORCE_PIPEWIRE=true)"
+else
+  step "Keeping existing audio system, PipeWire available as alternative"
+fi
 
 # Ensure the kiosk user is in audio/video groups
 usermod -aG audio,video "$PI_USER" || true
@@ -74,7 +81,7 @@ usermod -aG audio,video "$PI_USER" || true
 loginctl enable-linger "$PI_USER" || true
 sudo -u "$PI_USER" systemctl --user enable pipewire pipewire-pulse wireplumber || true
 # Don't try to --now here; it may fail without an active user session. Runtime wait happens in start-kiosk.sh.
-ok "PipeWire configured (Pulse removed if found)"
+ok "Audio system configured for microphone access"
 
 # ---------------------------------------------------------
 banner "3) Install Node.js ${NODE_MAJOR}.x (NodeSource if needed)"
@@ -247,18 +254,33 @@ fi
 # ---------------------------------------------------------
 banner "11) Chromium policy: allow mic for localhost"
 install -d /etc/chromium/policies/managed /etc/opt/chrome/policies/managed
-cat >/etc/chromium/policies/managed/kiosk-mic.json <<'JSON'
+cat >/etc/chromium/policies/managed/kiosk-mic.json <<JSON
 {
   "AudioCaptureAllowed": true,
   "AudioCaptureAllowedUrls": [
+    "https://localhost:${PORT}",
+    "http://localhost:${PORT}",
     "https://localhost:3000",
     "http://localhost:3000"
+  ],
+  "DefaultMediaStreamSetting": 1,
+  "MediaStreamMicrophoneAllowedUrls": [
+    "https://localhost:${PORT}",
+    "http://localhost:${PORT}",
+    "https://localhost:3000",
+    "http://localhost:3000"
+  ],
+  "AutoSelectCertificateForUrls": [
+    {
+      "pattern": "https://localhost:${PORT}",
+      "filter": {}
+    }
   ]
 }
 JSON
 # Copy to Chrome path too (harmless if missing)
 cp /etc/chromium/policies/managed/kiosk-mic.json /etc/opt/chrome/policies/managed/kiosk-mic.json 2>/dev/null || true
-ok "Chromium policy installed"
+ok "Chromium policy installed with enhanced microphone permissions"
 
 # ---------------------------------------------------------
 banner "12) Create kiosk launcher scripts & autostart entry"
@@ -266,6 +288,7 @@ START_KIOSK="$PI_HOME/start-kiosk.sh"
 EXIT_KIOSK="$PI_HOME/exit-kiosk.sh"
 AUTOSTART_DIR="$PI_HOME/.config/autostart"
 OPENBOX_DIR="$PI_HOME/.config/openbox"
+CHROME_DATA_DIR="$PI_HOME/.config/spectrabox-chrome"
 KIOSK_DESKTOP="$AUTOSTART_DIR/kiosk.desktop"
 OPENBOX_RC="$OPENBOX_DIR/lxde-pi-rc.xml"
 
@@ -275,7 +298,8 @@ if [[ -f "$CERT_DIR/server.crt" && -f "$CERT_DIR/server.key" ]]; then
   URL="https://localhost:${PORT}"
 fi
 
-install -d -m 755 "$AUTOSTART_DIR" "$OPENBOX_DIR"
+install -d -m 755 "$AUTOSTART_DIR" "$OPENBOX_DIR" "$CHROME_DATA_DIR"
+chown -R "$PI_USER:$PI_USER" "$CHROME_DATA_DIR"
 
 # CHANGE 3: use the detected browser binary; wait for audio + server
 cat > "$START_KIOSK" <<EOS
@@ -328,11 +352,11 @@ if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
     --autoplay-policy=no-user-gesture-required \\
     --ignore-certificate-errors \\
     --start-maximized \\
-    --incognito \\
+    --user-data-dir="\${PI_HOME}/.config/spectrabox-chrome" \\
     --allow-running-insecure-content \\
-    --disable-web-security \\
-    --use-fake-ui-for-media-stream \\
+    --use-fake-device-for-media-stream=false \\
     --enable-features=HardwareMediaKeyHandling \\
+    --disable-features=VizDisplayCompositor \\
     \${EXTRA_HTTP_FLAG}
 else
   # Firefox ESR fallback

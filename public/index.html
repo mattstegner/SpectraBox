@@ -10,7 +10,7 @@
         color: #fff;
         font-family: Arial, sans-serif;
         margin: 0;
-        padding: 3px;     /* Adjust this value to change the padding around the canvas */
+        padding: 0; /* No padding to allow full page coverage */
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -25,10 +25,10 @@
         position: relative;
         border: 1px solid #333;
         background-color: #111;
-        width: 100%;          
-        max-width: 2000px;    /* Maximum canvas width - adjust this to change max width */
-        height: 90vh;         /* Canvas height as 60% of viewport height */
-        min-height: 400px;    /* Minimum canvas height - adjust this to change min height */
+        width: 100%;
+        max-width: 2000px; /* Maximum canvas width - adjust this to change max width */
+        height: 100vh; /* Canvas height fills entire viewport height */
+        min-height: 400px; /* Minimum canvas height - adjust this to change min height */
       }
 
       canvas {
@@ -485,19 +485,28 @@
       }
 
       .progress-fill::after {
-        content: '';
+        content: "";
         position: absolute;
         top: 0;
         left: 0;
         right: 0;
         bottom: 0;
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.3),
+          transparent
+        );
         animation: progress-shine 2s infinite;
       }
 
       @keyframes progress-shine {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(100%); }
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(100%);
+        }
       }
 
       .progress-text {
@@ -633,8 +642,12 @@
       }
 
       @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
       }
 
       .update-title {
@@ -675,13 +688,18 @@
       }
 
       .update-progress-fill::after {
-        content: '';
+        content: "";
         position: absolute;
         top: 0;
         left: 0;
         right: 0;
         bottom: 0;
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.3),
+          transparent
+        );
         animation: progress-shine 2s infinite;
       }
 
@@ -1005,7 +1023,10 @@
             </div>
 
             <div class="setting-item">
-              <button id="resetSettingsBtn" style="background-color: #cc4400; border-color: #ff5500;">
+              <button
+                id="resetSettingsBtn"
+                style="background-color: #cc4400; border-color: #ff5500"
+              >
                 Reset Settings
               </button>
             </div>
@@ -1266,14 +1287,17 @@
               <label>Update Status:</label>
               <div id="updateStatusDisplay">
                 <div class="update-status-idle">
-                  Click "Check for Updates" to see if a newer version is available.
+                  Click "Check for Updates" to see if a newer version is
+                  available.
                 </div>
               </div>
             </div>
 
             <div class="setting-item">
               <button id="checkUpdatesBtn">Check for Updates</button>
-              <button id="performUpdateBtn" disabled style="margin-left: 10px;">Update Server</button>
+              <button id="performUpdateBtn" disabled style="margin-left: 10px">
+                Update Server
+              </button>
             </div>
 
             <div class="setting-item">
@@ -1287,7 +1311,11 @@
                   <div class="config-item">
                     <span class="config-label">GitHub URL:</span>
                     <span class="config-value">
-                      <a href="https://github.com/mattstegner/SpectraBox" target="_blank" style="color: #4a9eff;">
+                      <a
+                        href="https://github.com/mattstegner/SpectraBox"
+                        target="_blank"
+                        style="color: #4a9eff"
+                      >
                         https://github.com/mattstegner/SpectraBox
                       </a>
                     </span>

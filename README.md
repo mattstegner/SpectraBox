@@ -25,8 +25,8 @@ The easiest way to get SpectraBox running on a Raspberry Pi is using our automat
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
 
+**Method 1.5: Or, if curl errors occur, use:**
 ```bash
-Or, if curl errors occur, use:
 wget -qO- https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
 
 ```
