@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
-# =========================================================
 # SpectraBox Kiosk Installer (Debian + Raspberry Pi OS)
 # - Installs Node.js
-# - Installs browser (Chromium/Chromium-browser/Firefox ESR fallback)
+# - Installs browser (Chromium/Chromium-browser; Firefox ESR fallback)
+# - Sets up PipeWire audio (no PulseAudio conflict)
 # - Clones SpectraBox
 # - Generates HTTPS certs (for persistent mic permissions)
 # - Creates systemd service
-# - Configures kiosk autostart (LXDE/desktop session)
+# - Adds Chromium mic-allow policy for localhost
+# - Configures kiosk autostart
 # - Adapts automatically on Debian vs Raspberry Pi OS
-# =========================================================
 
-# ---------- Config (edit if needed) ----------
+# ---- Strict mode (split to avoid copy/paste wrapping issues) ----
+set -e
+set -u
+set -o pipefail
+
+# ---------- Config ----------
 PI_USER="${SUDO_USER:-${USER}}"
 PI_HOME="$(getent passwd "$PI_USER" | cut -d: -f6)"
 APP_DIR="$PI_HOME/spectrabox"
@@ -22,7 +25,7 @@ PORT="3000"
 NODE_MAJOR="18"     # Node LTS track to install if missing
 MEM_MAX="512M"
 CPU_QUOTA="80%"
-# --------------------------------------------
+# ---------------------------
 
 banner() { echo -e "\n\033[1;36m==> $*\033[0m"; }
 ok()     { echo -e "\033[1;32m✔ $*\033[0m"; }
@@ -58,7 +61,6 @@ apt-get install -y --no-install-recommends \
   libxcursor1 libxdamage1 libxrandr2 libgbm1 \
   libxkbcommon0 libatspi2.0-0 \
   alsa-utils openssl
-
 ok "System packages installed/updated"
 
 # ---------------------------------------------------------
@@ -115,11 +117,7 @@ apt-get install -y "$BROWSER_PKG"
 BROWSER_BIN="$(command -v chromium || true)"
 BROWSER_BIN="${BROWSER_BIN:-$(command -v chromium-browser || true)}"
 BROWSER_BIN="${BROWSER_BIN:-$(command -v firefox-esr || true)}"
-
-if [[ -z "${BROWSER_BIN}" ]]; then
-  err "Unable to locate browser binary after install."
-fi
-
+[[ -n "$BROWSER_BIN" ]] || err "Unable to locate browser binary after install."
 step "Browser package: ${BROWSER_PKG}"
 step "Browser binary : ${BROWSER_BIN}"
 ok "Browser installed"
@@ -180,14 +178,13 @@ CERT_DIR="$APP_DIR/certs"
 mkdir -p "$CERT_DIR"
 chown -R "$PI_USER:$PI_USER" "$CERT_DIR"
 
-# If repo provides a generator, prefer that. Otherwise create self-signed localhost certs.
+# Prefer repo generator; fallback to openssl self-signed
 if [[ -f "$APP_DIR/generate-ssl.js" ]]; then
   step "Found generate-ssl.js; using it"
   sudo -u "$PI_USER" node "$APP_DIR/generate-ssl.js" || warn "generate-ssl.js failed; using openssl fallback"
 fi
-
 if [[ ! -f "$CERT_DIR/server.key" || ! -f "$CERT_DIR/server.crt" ]]; then
-  step "Creating self-signed cert with openssl (CN=localhost)"
+  step "Creating self-signed cert (CN=localhost)"
   openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
     -keyout "$CERT_DIR/server.key" \
     -out "$CERT_DIR/server.crt" \
@@ -198,15 +195,14 @@ ok "TLS certificates ready"
 
 # ---------------------------------------------------------
 banner "9) Create systemd service for SpectraBox"
-
-# Decide ExecStart: prefer npm start if defined; fallback to server.js
+# Prefer npm start if defined; fallback to server.js
 EXEC_START=""
 if [[ -f package.json ]] && jq -e '.scripts.start' package.json >/dev/null 2>&1; then
   EXEC_START="/usr/bin/npm start --silent"
 elif [[ -f server.js ]]; then
   EXEC_START="/usr/bin/node ${APP_DIR}/server.js"
 else
-  err "No start script or server.js found. Please ensure the repo includes one."
+  err "No start script or server.js found in repo."
 fi
 
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -229,7 +225,6 @@ ExecStart=${EXEC_START}
 Restart=always
 RestartSec=3
 
-# Security hardening
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
@@ -250,20 +245,19 @@ ok "Systemd service enabled & started"
 
 # ---------------------------------------------------------
 banner "10) Configure Desktop autologin / GUI boot (Pi OS if available)"
+# CHANGE 2: guard raspi-config; Debian falls back to graphical.target
 if command -v raspi-config >/dev/null 2>&1; then
-  # B4 = Desktop autologin (older raspi-config nomenclature)
-  raspi-config nonint do_boot_behaviour B4 || true
+  raspi-config nonint do_boot_behaviour B4 || true   # Desktop autologin
   ok "raspi-config set to Desktop (autologin)"
 else
-  warn "raspi-config not present (likely plain Debian). Skipping Pi-specific boot settings."
-  # If a desktop exists, ensure graphical target (harmless if no DE)
+  warn "raspi-config not present (likely Debian). Skipping Pi-specific boot settings."
   systemctl set-default graphical.target || true
 fi
 
 # ---------------------------------------------------------
 banner "11) Chromium policy: allow mic for localhost"
 install -d /etc/chromium/policies/managed /etc/opt/chrome/policies/managed
-cat >/etc/chromium/policies/managed/kiosk-mic.json <<EOF
+cat >/etc/chromium/policies/managed/kiosk-mic.json <<JSON
 {
   "AudioCaptureAllowed": true,
   "AudioCaptureAllowedUrls": [
@@ -286,14 +280,13 @@ cat >/etc/chromium/policies/managed/kiosk-mic.json <<EOF
     }
   ]
 }
-EOF
+JSON
 # Copy to Chrome path too (harmless if missing)
 cp /etc/chromium/policies/managed/kiosk-mic.json /etc/opt/chrome/policies/managed/kiosk-mic.json 2>/dev/null || true
 ok "Chromium policy installed with enhanced microphone permissions"
 
 # ---------------------------------------------------------
 banner "12) Create kiosk launcher scripts & autostart entry"
-
 START_KIOSK="$PI_HOME/start-kiosk.sh"
 EXIT_KIOSK="$PI_HOME/exit-kiosk.sh"
 AUTOSTART_DIR="$PI_HOME/.config/autostart"
@@ -439,7 +432,7 @@ X-GNOME-Autostart-enabled=true
 EOF
 chown -R "$PI_USER:$PI_USER" "$AUTOSTART_DIR"
 
-# Emergency exit keybinding (Ctrl+Alt+X) for Openbox/LXDE
+# Emergency exit keybinding (Ctrl+Alt+X) for Openbox/LXDE (created if not present)
 if [[ ! -f "$OPENBOX_RC" ]]; then
   cat > "$OPENBOX_RC" <<'EOF'
 <openbox_config>
