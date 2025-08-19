@@ -111,9 +111,34 @@ CURRENT_STEP="Audio stack (PipeWire) setup"
 if confirm_step "2" "Audio stack: PipeWire (avoid PulseAudio conflicts)" "Install/enable PipeWire + WirePlumber; remove PulseAudio; add user to audio/video"; then
   apt-get install -y --no-install-recommends pipewire-audio wireplumber libspa-0.2-bluetooth
   apt-get purge -y pulseaudio pulseaudio-utils || true
+  
+  # Ensure audio group exists
+  if ! getent group audio >/dev/null 2>&1; then
+    groupadd audio || true
+  fi
+  
+  # Add user to audio and video groups
   usermod -aG audio,video "$PI_USER" || true
+  
+  # Enable user linger for PipeWire
   loginctl enable-linger "$PI_USER" || true
+  
+  # Enable PipeWire services for the user
   sudo -u "$PI_USER" systemctl --user enable pipewire pipewire-pulse wireplumber || true
+  
+  # Start PipeWire services for the user
+  sudo -u "$PI_USER" systemctl --user start pipewire pipewire-pulse wireplumber || true
+  
+  # Wait for PipeWire to be ready
+  echo "Waiting for PipeWire to initialize..."
+  for i in {1..10}; do
+    if sudo -u "$PI_USER" wpctl status >/dev/null 2>&1; then
+      echo "PipeWire is ready"
+      break
+    fi
+    sleep 1
+  done
+  
   echo "✔ PipeWire configured"
 fi
 
@@ -177,6 +202,31 @@ if confirm_step "6" "Install Node dependencies" "Run npm ci/install in productio
 fi
 
 # ---------------------------------------------------------
+CURRENT_STEP="User permissions & groups"
+if confirm_step "7.5" "User permissions & groups" "Ensure user is in audio/video groups and has proper permissions"; then
+  # Add user to audio and video groups
+  usermod -aG audio,video "$PI_USER" || true
+  
+  # Ensure audio group exists and has proper permissions
+  if ! getent group audio >/dev/null 2>&1; then
+    groupadd audio || true
+  fi
+  
+  # Set proper permissions for audio devices
+  if [ -d /dev/snd ]; then
+    chmod 660 /dev/snd/* 2>/dev/null || true
+    chown root:audio /dev/snd/* 2>/dev/null || true
+  fi
+  
+  # Ensure user can access audio devices
+  if [ -e /dev/snd/controlC0 ]; then
+    chmod 666 /dev/snd/controlC0 2>/dev/null || true
+  fi
+  
+  echo "✔ User permissions configured"
+fi
+
+# ---------------------------------------------------------
 CURRENT_STEP="Generate SSL certificates"
 if confirm_step "7" "Generate SSL certs (localhost)" "Create ~/spectrabox/ssl/key.pem & ssl/cert.pem (fallback to legacy certs if present)"; then
   SSL_DIR="$APP_DIR/ssl"
@@ -208,51 +258,109 @@ fi
 CURRENT_STEP="Create systemd service"
 if confirm_step "8" "Create systemd service (spectrabox)" "Run app at boot via systemd (npm start or server.js)"; then
   cd "$APP_DIR"
-  if [ -f package.json ] && jq -e '.scripts.start' package.json >/dev/null 2>&1; then
-    EXEC_START="/usr/bin/npm start --silent"
-  elif [ -f server.js ]; then
-    EXEC_START="/usr/bin/node ${APP_DIR}/server.js"
-  else
-    echo "✖ No start script or server.js found in repo."; exit 1
-  fi
-
+  
+  # Use the working service configuration from the existing spectrabox.service
   SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
   cat > "$SERVICE_FILE" <<EOF
 [Unit]
-Description=SpectraBox Node Server
-After=network-online.target
-Wants=network-online.target
+Description=SpectraBox - Web-based Audio Device Management
+Documentation=https://github.com/mattstegner/SpectraBox
+After=network.target sound.target
+Wants=network.target
 
 [Service]
 Type=simple
 User=${PI_USER}
+Group=audio
 WorkingDirectory=${APP_DIR}
 Environment=NODE_ENV=production
 Environment=PORT=${PORT}
 Environment=HOST=0.0.0.0
 Environment=LOG_LEVEL=info
 Environment=NODE_OPTIONS=--max-old-space-size=256
-ExecStart=${EXEC_START}
+ExecStart=/usr/bin/node server.js
+ExecReload=/bin/kill -HUP \$MAINPID
 Restart=always
-RestartSec=3
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=spectrabox
 
+# Security settings
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
-ProtectHome=false
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=${APP_DIR}
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+# Resource limits for Raspberry Pi
+LimitNOFILE=1024
+LimitNPROC=512
 MemoryMax=${MEM_MAX}
 CPUQuota=${CPU_QUOTA}
+
+# Graceful shutdown
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
+  echo "✔ Service file created at $SERVICE_FILE"
+fi
+
+# ---------------------------------------------------------
+CURRENT_STEP="Verify service configuration"
+if confirm_step "8.5" "Verify service configuration" "Check service file, reload systemd, and verify startup"; then
+  # Verify the service file was created correctly
+  if [ ! -f "/etc/systemd/system/${SERVICE_NAME}.service" ]; then
+    echo "✖ Service file not found at /etc/systemd/system/${SERVICE_NAME}.service"
+    exit 1
+  fi
+  
+  # Check service file syntax
+  if ! systemd-analyze verify "/etc/systemd/system/${SERVICE_NAME}.service" 2>/dev/null; then
+    echo "! Service file has syntax issues, but continuing..."
+  fi
+  
+  # Reload systemd and enable service
   systemctl daemon-reload
   systemctl enable "${SERVICE_NAME}"
-  systemctl restart "${SERVICE_NAME}"
-  sleep 2 || true
-  systemctl --no-pager --full status "${SERVICE_NAME}" || true
-  echo "✔ Service enabled & started"
+  
+  # Check if service can start without errors
+  if ! systemctl start "${SERVICE_NAME}" 2>/dev/null; then
+    echo "✖ Service failed to start. Checking status:"
+    systemctl --no-pager --full status "${SERVICE_NAME}" || true
+    echo "Checking logs:"
+    journalctl -u "${SERVICE_NAME}" --no-pager -n 20 || true
+    exit 1
+  fi
+  
+  # Wait for service to be fully active
+  echo "Waiting for service to be fully active..."
+  for i in {1..15}; do
+    if systemctl is-active --quiet "${SERVICE_NAME}"; then
+      echo "✔ Service is active"
+      break
+    fi
+    echo "Waiting for service to start... (attempt $i/15)"
+    sleep 2
+  done
+  
+  # Final status check
+  if systemctl is-active --quiet "${SERVICE_NAME}"; then
+    echo "✔ Service is running successfully"
+    systemctl --no-pager --full status "${SERVICE_NAME}" || true
+  else
+    echo "✖ Service failed to become active"
+    systemctl --no-pager --full status "${SERVICE_NAME}" || true
+    echo "Recent logs:"
+    journalctl -u "${SERVICE_NAME}" --no-pager -n 30 || true
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------
@@ -339,23 +447,50 @@ BROWSER_BIN="${BROWSER_BIN:-$(command -v chromium || command -v chromium-browser
 CHROME_DATA_DIR="${CHROME_DATA_DIR}"
 
 # Wait for audio server (PipeWire or Pulse shim)
+echo "Waiting for audio server..."
 for i in {1..20}; do
   if command -v wpctl >/dev/null 2>&1; then
-    if wpctl status >/dev/null 2>&1; then break; fi
+    if wpctl status >/dev/null 2>&1; then 
+      echo "PipeWire audio server ready"
+      break
+    fi
   elif command -v pactl >/dev/null 2>&1; then
-    if pactl info >/dev/null 2>&1; then break; fi
+    if pactl info >/dev/null 2>&1; then 
+      echo "PulseAudio server ready"
+      break
+    fi
   fi
   sleep 1
 done
 
-# Wait for SpectraBox to respond (up to 60s)
-for i in {1..60}; do
-  if command -v curl >/dev/null 2>&1 && curl -sk --max-time 1 "\${URL}/api/health" >/dev/null 2>&1; then
-    break
+# Wait for SpectraBox to respond (up to 90s with better feedback)
+echo "Waiting for SpectraBox server..."
+for i in {1..90}; do
+  if command -v curl >/dev/null 2>&1; then
+    if curl -sk --max-time 2 "\${URL}/api/health" >/dev/null 2>&1; then
+      echo "SpectraBox server is ready"
+      break
+    fi
   fi
+  
+  if [ \$i -eq 1 ]; then
+    echo "Server not responding yet, waiting..."
+  elif [ \$((i % 10)) -eq 0 ]; then
+    echo "Still waiting for server... (attempt \$i/90)"
+  fi
+  
   sleep 1
 done
 
+# Final check before launching browser
+if ! curl -sk --max-time 5 "\${URL}/api/health" >/dev/null 2>&1; then
+  echo "ERROR: SpectraBox server is not responding after 90 seconds"
+  echo "Check service status: sudo systemctl status spectrabox"
+  echo "Check logs: sudo journalctl -u spectrabox -f"
+  exit 1
+fi
+
+echo "Launching browser in kiosk mode..."
 if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
   EXTRA_HTTP_FLAG=""
   if [[ "\${URL}" =~ ^http:// ]]; then
@@ -440,34 +575,158 @@ if confirm_step "12" "Permissions & logs" "Ensure ownership of app dir; create /
 fi
 
 # ---------------------------------------------------------
+CURRENT_STEP="Test service functionality"
+if confirm_step "12.5" "Test service functionality" "Test the service can start, stop, and restart properly"; then
+  echo "Testing service functionality..."
+  
+  # Test service restart
+  if systemctl restart "${SERVICE_NAME}"; then
+    echo "✔ Service restart successful"
+  else
+    echo "✖ Service restart failed"
+    systemctl --no-pager --full status "${SERVICE_NAME}" || true
+    exit 1
+  fi
+  
+  # Wait for service to be active again
+  sleep 3
+  if systemctl is-active --quiet "${SERVICE_NAME}"; then
+    echo "✔ Service is active after restart"
+  else
+    echo "✖ Service failed to become active after restart"
+    systemctl --no-pager --full status "${SERVICE_NAME}" || true
+    exit 1
+  fi
+  
+  # Test service reload (if supported)
+  if systemctl reload "${SERVICE_NAME}" 2>/dev/null; then
+    echo "✔ Service reload successful"
+  else
+    echo "! Service reload not supported (this is normal)"
+  fi
+  
+  echo "✔ Service functionality test passed"
+fi
+
+# ---------------------------------------------------------
 CURRENT_STEP="Health check"
 if confirm_step "13" "Health check" "Query /api/health over http/https localhost"; then
-  if command -v curl >/dev/null 2>&1 && \
-     (curl -sk "http://localhost:${PORT}/api/health" >/dev/null 2>&1 || \
-      curl -sk "https://localhost:${PORT}/api/health" >/dev/null 2>&1); then
+  echo "Performing health check..."
+  
+  # Wait a bit more for the service to be fully ready
+  sleep 2
+  
+  # Try multiple health check attempts
+  HEALTH_CHECK_PASSED=false
+  for attempt in {1..5}; do
+    echo "Health check attempt $attempt/5..."
+    
+    if command -v curl >/dev/null 2>&1; then
+      # Try HTTP first
+      if curl -sk --max-time 5 "http://localhost:${PORT}/api/health" >/dev/null 2>&1; then
+        echo "✔ HTTP health check passed"
+        HEALTH_CHECK_PASSED=true
+        break
+      fi
+      
+      # Try HTTPS if HTTP failed
+      if curl -sk --max-time 5 "https://localhost:${PORT}/api/health" >/dev/null 2>&1; then
+        echo "✔ HTTPS health check passed"
+        HEALTH_CHECK_PASSED=true
+        break
+      fi
+    fi
+    
+    if [ $attempt -lt 5 ]; then
+      echo "Health check failed, waiting 3 seconds before retry..."
+      sleep 3
+    fi
+  done
+  
+  if [ "$HEALTH_CHECK_PASSED" = true ]; then
     echo "✔ Server responded to /api/health"
   else
-    echo "! Server not responding yet—systemd may still be starting (or endpoint not present)."
+    echo "! Server not responding to health checks"
+    echo "Checking service status:"
+    systemctl --no-pager --full status "${SERVICE_NAME}" || true
+    echo "Recent service logs:"
+    journalctl -u "${SERVICE_NAME}" --no-pager -n 20 || true
+    echo "Note: Service may still be starting up. You can check manually with:"
+    echo "  sudo systemctl status spectrabox"
+    echo "  sudo journalctl -u spectrabox -f"
   fi
+fi
+
+# ---------------------------------------------------------
+CURRENT_STEP="Enable service on boot"
+if confirm_step "13.5" "Enable service on boot" "Ensure the service starts automatically on system boot"; then
+  echo "Enabling service to start on boot..."
+  
+  if systemctl enable "${SERVICE_NAME}"; then
+    echo "✔ Service enabled for boot"
+  else
+    echo "✖ Failed to enable service for boot"
+    exit 1
+  fi
+  
+  # Verify the service is enabled
+  if systemctl is-enabled --quiet "${SERVICE_NAME}"; then
+    echo "✔ Service is confirmed enabled for boot"
+  else
+    echo "✖ Service is not enabled for boot"
+    exit 1
+  fi
+  
+  echo "✔ Boot autostart configured"
 fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="Finish"
 if confirm_step "14" "Finish & reboot" "Show summary; optionally reboot into kiosk"; then
   echo
-  echo "Summary:"
-  echo "  • Service : ${SERVICE_NAME} — sudo systemctl status ${SERVICE_NAME}"
-  echo "  • App Dir : ${APP_DIR}"
-  echo "  • URL     : http(s)://localhost:${PORT}"
-  echo "  • Kiosk   : Autostarts at login; emergency exit Ctrl+Alt+X"
-  echo "  • Start/Stop kiosk: ${PI_HOME}/start-kiosk.sh / ${PI_HOME}/exit-kiosk.sh"
-  echo "  • Install log: ${INSTALL_LOG}"
+  echo "============================================================"
+  echo "🎉 SpectraBox Kiosk Installation Complete!"
+  echo "============================================================"
+  echo
+  echo "📋 Installation Summary:"
+  echo "  • Service     : ${SERVICE_NAME}"
+  echo "  • Status      : $(systemctl is-active --quiet "${SERVICE_NAME}" && echo "✅ Running" || echo "❌ Not running")"
+  echo "  • Boot Status : $(systemctl is-enabled --quiet "${SERVICE_NAME}" && echo "✅ Enabled" || echo "❌ Not enabled")"
+  echo "  • App Dir     : ${APP_DIR}"
+  echo "  • URL         : http(s)://localhost:${PORT}"
+  echo "  • Kiosk       : Autostarts at login; emergency exit Ctrl+Alt+X"
+  echo
+  echo "🔧 Service Management:"
+  echo "  • Check status: sudo systemctl status ${SERVICE_NAME}"
+  echo "  • View logs   : sudo journalctl -u ${SERVICE_NAME} -f"
+  echo "  • Start       : sudo systemctl start ${SERVICE_NAME}"
+  echo "  • Stop        : sudo systemctl stop ${SERVICE_NAME}"
+  echo "  • Restart     : sudo systemctl restart ${SERVICE_NAME}"
+  echo
+  echo "🌐 Kiosk Management:"
+  echo "  • Start kiosk : ${PI_HOME}/start-kiosk.sh"
+  echo "  • Exit kiosk  : ${PI_HOME}/exit-kiosk.sh"
+  echo "  • Manual test : sudo -u ${PI_USER} ${PI_HOME}/start-kiosk.sh"
+  echo
+  echo "📁 Files & Logs:"
+  echo "  • Install log : ${INSTALL_LOG}"
+  echo "  • Service log : /var/log/spectrabox/"
+  echo "  • SSL certs   : ${APP_DIR}/ssl/"
+  echo
+  echo "🚨 Troubleshooting:"
+  echo "  • If service fails: sudo journalctl -u ${SERVICE_NAME} -n 50"
+  echo "  • If browser won't start: check DISPLAY variable and X11"
+  echo "  • If audio issues: ensure user is in audio group"
+  echo "  • If port conflicts: check with 'sudo netstat -tlnp | grep :${PORT}'"
   echo
   read -r -p "Reboot now to enter kiosk mode? [Y/n] " ans </dev/tty || ans="Y"
   if [[ -z "$ans" || "$ans" =~ ^[Yy]$ ]]; then
+    echo "Rebooting in 5 seconds... (Ctrl+C to cancel)"
+    sleep 5
     reboot
   else
     echo "Skipping reboot. You can reboot later with: sudo reboot"
+    echo "To test kiosk mode now, run: sudo -u ${PI_USER} ${PI_HOME}/start-kiosk.sh"
   fi
 else
   echo "Done. Skipped final reboot."
