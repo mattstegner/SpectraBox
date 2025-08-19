@@ -300,6 +300,19 @@ if confirm_step "8" "Create systemd service (spectrabox)" "Run app at boot via s
   
   echo "✔ Service user access verified"
   
+  # Create log directory and set permissions
+  echo "Creating log directory..."
+  mkdir -p /var/log/spectrabox
+  chown "${PI_USER}:${PI_USER}" /var/log/spectrabox
+  chmod 755 /var/log/spectrabox
+  
+  # Create log file and set permissions
+  touch /var/log/spectrabox/app.log
+  chown "${PI_USER}:${PI_USER}" /var/log/spectrabox/app.log
+  chmod 644 /var/log/spectrabox/app.log
+  
+  echo "✔ Log directory and file created at /var/log/spectrabox/app.log"
+  
   # Use the working service configuration from the existing spectrabox.service
   SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
   cat > "$SERVICE_FILE" <<EOF
@@ -319,12 +332,12 @@ Environment=PORT=${PORT}
 Environment=HOST=0.0.0.0
 Environment=LOG_LEVEL=info
 Environment=NODE_OPTIONS=--max-old-space-size=256
-ExecStart=/usr/bin/node server.js
+ExecStart=/usr/bin/node ${APP_DIR}/server.js
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=always
 RestartSec=10
-StandardOutput=journal
-StandardError=journal
+StandardOutput=append:/var/log/spectrabox/app.log
+StandardError=append:/var/log/spectrabox/app.log
 SyslogIdentifier=spectrabox
 
 # Security settings - adjusted for working directory access
@@ -332,7 +345,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=false
 ProtectHome=false
-ReadWritePaths=${APP_DIR}
+ReadWritePaths=${APP_DIR} /var/log/spectrabox
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 
 # Resource limits for Raspberry Pi
@@ -351,6 +364,59 @@ WantedBy=multi-user.target
 EOF
 
   echo "✔ Service file created at $SERVICE_FILE"
+fi
+
+# ---------------------------------------------------------
+CURRENT_STEP="Create user-level kiosk service"
+if confirm_step "8.5" "Create user-level kiosk service" "Create systemd user service for reliable browser launch"; then
+  # Create user systemd directory
+  USER_SYSTEMD_DIR="$PI_HOME/.config/systemd/user"
+  mkdir -p "$USER_SYSTEMD_DIR"
+  chown -R "$PI_USER:$PI_USER" "$USER_SYSTEMD_DIR"
+  
+  # Create user-level kiosk service
+  USER_KIOSK_SERVICE="$USER_SYSTEMD_DIR/spectrabox-kiosk.service"
+  cat > "$USER_KIOSK_SERVICE" <<EOF
+[Unit]
+Description=SpectraBox Kiosk Browser
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+ExecStart=%h/start-kiosk.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+
+  chown "$PI_USER:$PI_USER" "$USER_KIOSK_SERVICE"
+  chmod 644 "$USER_KIOSK_SERVICE"
+  
+  echo "✔ User-level kiosk service created at $USER_KIOSK_SERVICE"
+fi
+
+# ---------------------------------------------------------
+CURRENT_STEP="Enable user-level kiosk service"
+if confirm_step "8.6" "Enable user-level kiosk service" "Enable user linger and user-level kiosk service"; then
+  # Enable user linger for persistent user services
+  loginctl enable-linger "$PI_USER" || true
+  
+  # Reload user systemd and enable kiosk service
+  sudo -u "$PI_USER" systemctl --user daemon-reload || true
+  sudo -u "$PI_USER" systemctl --user enable spectrabox-kiosk.service || true
+  
+  # Verify the service is enabled
+  if sudo -u "$PI_USER" systemctl --user is-enabled --quiet spectrabox-kiosk.service; then
+    echo "✔ User-level kiosk service enabled"
+  else
+    echo "! User-level kiosk service may not be enabled (this is normal on first run)"
+  fi
+  
+  echo "✔ User linger and kiosk service configured"
 fi
 
 # ---------------------------------------------------------
@@ -400,6 +466,8 @@ if confirm_step "8.5" "Verify service configuration" "Check service file, reload
     systemctl --no-pager --full status "${SERVICE_NAME}" || true
     echo "Recent logs:"
     journalctl -u "${SERVICE_NAME}" --no-pager -n 30 || true
+    echo "App log:"
+    tail -n 20 /var/log/spectrabox/app.log 2>/dev/null || echo "App log not available yet"
     exit 1
   fi
 fi
@@ -759,6 +827,18 @@ if confirm_step "14" "Finish & reboot" "Show summary; optionally reboot into kio
   echo "  • If browser won't start: check DISPLAY variable and X11"
   echo "  • If audio issues: ensure user is in audio group"
   echo "  • If port conflicts: check with 'sudo netstat -tlnp | grep :${PORT}'"
+  echo
+  echo "🔍 Next Steps - Verification Commands:"
+  echo "  • Check Node server status:"
+  echo "    sudo systemctl status spectrabox --no-pager -l"
+  echo "    sudo tail -n 50 /var/log/spectrabox/app.log"
+  echo "    curl -sk https://localhost:${PORT}/api/health || curl -s http://localhost:${PORT}/api/health"
+  echo "  • Check kiosk service status:"
+  echo "    sudo -u ${PI_USER} systemctl --user status spectrabox-kiosk --no-pager -l"
+  echo "    sudo -u ${PI_USER} journalctl --user -u spectrabox-kiosk -e --no-pager"
+  echo "  • Manual service management:"
+  echo "    sudo systemctl daemon-reload && sudo systemctl restart spectrabox"
+  echo "    sudo -u ${PI_USER} systemctl --user daemon-reload && sudo -u ${PI_USER} systemctl --user restart spectrabox-kiosk"
   echo
   read -r -p "Reboot now to enter kiosk mode? [Y/n] " ans </dev/tty || ans="Y"
   if [[ -z "$ans" || "$ans" =~ ^[Yy]$ ]]; then
