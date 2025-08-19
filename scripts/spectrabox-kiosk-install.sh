@@ -2,11 +2,11 @@
 # SpectraBox Kiosk Installer (Debian + Raspberry Pi OS)
 # - Installs Node.js
 # - Installs browser (Chromium/Chromium-browser; Firefox ESR fallback)
-# - Sets up PipeWire audio (no PulseAudio conflict)
+# - Uses PipeWire audio (no PulseAudio conflict)
 # - Clones SpectraBox
-# - Generates HTTPS certs (for persistent mic permissions)
+# - Generates SSL certs in ~/spectrabox/ssl (key.pem/cert.pem)
 # - Creates systemd service
-# - Adds Chromium mic-allow policy for localhost
+# - Adds Chromium mic-allow policy
 # - Configures kiosk autostart (XDG + LXDE fallback)
 # - Adapts automatically on Debian vs Raspberry Pi OS
 
@@ -22,7 +22,7 @@ APP_DIR="$PI_HOME/spectrabox"
 REPO_URL="https://github.com/mattstegner/SpectraBox.git"
 SERVICE_NAME="spectrabox"
 PORT="3000"
-NODE_MAJOR="18"     # Node LTS track to install if missing
+NODE_MAJOR="18"
 MEM_MAX="512M"
 CPU_QUOTA="80%"
 INSTALL_LOG="/var/log/spectrabox-install.log"
@@ -44,7 +44,7 @@ require_root() {
 trap 'err "Install failed. Check the logs above or $INSTALL_LOG."' ERR
 require_root
 
-# --- Log to file as well as console (non-audio change) ---
+# --- Log to file as well as console ---
 mkdir -p "$(dirname "$INSTALL_LOG")"
 touch "$INSTALL_LOG" || true
 exec > >(tee -a "$INSTALL_LOG") 2>&1
@@ -62,21 +62,17 @@ apt-get upgrade -y
 apt-get install -y --no-install-recommends \
   ca-certificates curl wget git jq xdg-utils \
   xdotool unclutter \
-  libnss3 libatk1.0-0 libxss1 libasound2 \
-  alsa-utils openssl
+  libnss3 libatk1.0-0 libxss1 libasound2 alsa-utils openssl \
+  # Browser runtime libs (stability/compat)
+  libgtk-3-0 libgdk-pixbuf2.0-0 libxcomposite1 libxcursor1 libxdamage1 \
+  libxrandr2 libgbm1 libxkbcommon0 libatspi2.0-0
 ok "System packages installed/updated"
 
 # ---------------------------------------------------------
 banner "2) Audio stack: PipeWire (avoid Pulse conflicts)"
-# (Audio subsystem unchanged from previous working script)
-apt-get install -y --no-install-recommends \
-  pipewire-audio wireplumber libspa-0.2-bluetooth
+apt-get install -y --no-install-recommends pipewire-audio wireplumber libspa-0.2-bluetooth
 apt-get purge -y pulseaudio pulseaudio-utils || true
-
-# Ensure the kiosk user is in audio/video groups
 usermod -aG audio,video "$PI_USER" || true
-
-# Enable user services for PipeWire (persist even before first login)
 loginctl enable-linger "$PI_USER" || true
 sudo -u "$PI_USER" systemctl --user enable pipewire pipewire-pulse wireplumber || true
 ok "PipeWire configured (Pulse removed if found)"
@@ -93,7 +89,6 @@ ok "Node.js ready"
 
 # ---------------------------------------------------------
 banner "4) Choose and install browser (Chromium/Firefox fallback)"
-# package detection (chromium vs chromium-browser; firefox-esr fallback)
 pkg_exists() { apt-cache show "$1" 2>/dev/null | grep -q '^Package:'; }
 
 BROWSER_PKG=""
@@ -108,7 +103,6 @@ else
 fi
 apt-get install -y "$BROWSER_PKG"
 
-# Resolve the runtime binary
 BROWSER_BIN="$(command -v chromium || true)"
 BROWSER_BIN="${BROWSER_BIN:-$(command -v chromium-browser || true)}"
 BROWSER_BIN="${BROWSER_BIN:-$(command -v firefox-esr || true)}"
@@ -139,30 +133,40 @@ fi
 ok "Node dependencies installed"
 
 # ---------------------------------------------------------
-banner "7) Generate HTTPS certs (for persistent mic permission)"
-CERT_DIR="$APP_DIR/certs"
-mkdir -p "$CERT_DIR"
-chown -R "$PI_USER:$PI_USER" "$CERT_DIR"
+banner "7) Generate SSL certs for HTTPS (persistent mic permissions)"
+# Use ssl/key.pem & ssl/cert.pem for full compatibility.
+SSL_DIR="$APP_DIR/ssl"
+mkdir -p "$SSL_DIR"
+chown -R "$PI_USER:$PI_USER" "$SSL_DIR"
 
-# Prefer repo generator; fallback to openssl self-signed
+# Also detect legacy certs dir if present (backward-compat only)
+LEGACY_CERT_DIR="$APP_DIR/certs"
+
 if [[ -f "$APP_DIR/generate-ssl.js" ]]; then
   step "Found generate-ssl.js; using it"
   sudo -u "$PI_USER" node "$APP_DIR/generate-ssl.js" || warn "generate-ssl.js failed; using openssl fallback"
 fi
-if [[ ! -f "$CERT_DIR/server.key" || ! -f "$CERT_DIR/server.crt" ]]; then
-  step "Creating self-signed cert (CN=localhost)"
+
+if [[ ! -f "$SSL_DIR/key.pem" || ! -f "$SSL_DIR/cert.pem" ]]; then
+  step "Creating self-signed cert (CN=localhost) into ssl/"
   openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
-    -keyout "$CERT_DIR/server.key" \
-    -out "$CERT_DIR/server.crt" \
+    -keyout "$SSL_DIR/key.pem" \
+    -out "$SSL_DIR/cert.pem" \
     -subj "/CN=localhost"
-  chown "$PI_USER:$PI_USER" "$CERT_DIR/server.key" "$CERT_DIR/server.crt"
+  chown "$PI_USER:$PI_USER" "$SSL_DIR/key.pem" "$SSL_DIR/cert.pem"
 fi
-ok "TLS certificates ready"
+
+# If legacy certs exist but ssl/ is empty, copy once (compat)
+if [[ -f "$LEGACY_CERT_DIR/server.key" && -f "$LEGACY_CERT_DIR/server.crt" && \
+      ! -f "$SSL_DIR/key.pem" ]]; then
+  cp "$LEGACY_CERT_DIR/server.key" "$SSL_DIR/key.pem"
+  cp "$LEGACY_CERT_DIR/server.crt" "$SSL_DIR/cert.pem"
+  chown "$PI_USER:$PI_USER" "$SSL_DIR/key.pem" "$SSL_DIR/cert.pem"
+fi
+ok "TLS certificates ready at $SSL_DIR"
 
 # ---------------------------------------------------------
 banner "8) Create systemd service for SpectraBox"
-# Prefer npm start if defined; fallback to server.js
-EXEC_START=""
 if [[ -f package.json ]] && jq -e '.scripts.start' package.json >/dev/null 2>&1; then
   EXEC_START="/usr/bin/npm start --silent"
 elif [[ -f server.js ]]; then
@@ -211,7 +215,6 @@ ok "Systemd service enabled & started"
 
 # ---------------------------------------------------------
 banner "9) Configure Desktop autologin / GUI boot (Pi OS if available)"
-# raspi-config guarded; Debian falls back to graphical.target
 if command -v raspi-config >/dev/null 2>&1; then
   raspi-config nonint do_boot_behaviour B4 || true   # Desktop autologin
   ok "raspi-config set to Desktop (autologin)"
@@ -222,19 +225,36 @@ fi
 
 # ---------------------------------------------------------
 banner "10) Chromium policy: allow mic for localhost"
-install -d /etc/chromium/policies/managed /etc/opt/chrome/policies/managed
-cat >/etc/chromium/policies/managed/kiosk-mic.json <<'JSON'
+# Write to all plausible policy paths (Chromium/Chromium-browser/Chrome)
+install -d /etc/chromium/policies/managed \
+           /etc/chromium-browser/policies/managed \
+           /etc/opt/chrome/policies/managed
+
+cat >/etc/chromium/policies/managed/kiosk-mic.json <<JSON
 {
   "AudioCaptureAllowed": true,
   "AudioCaptureAllowedUrls": [
+    "https://localhost:${PORT}",
+    "http://localhost:${PORT}",
     "https://localhost:3000",
     "http://localhost:3000"
+  ],
+  "DefaultMediaStreamSetting": 1,
+  "MediaStreamMicrophoneAllowedUrls": [
+    "https://localhost:${PORT}",
+    "http://localhost:${PORT}",
+    "https://localhost:3000",
+    "http://localhost:3000"
+  ],
+  "AutoSelectCertificateForUrls": [
+    { "pattern": "https://localhost:${PORT}", "filter": {} }
   ]
 }
 JSON
-# Copy to Chrome path too (harmless if missing)
+# Mirror to other vendor paths (ignore if missing)
+cp /etc/chromium/policies/managed/kiosk-mic.json /etc/chromium-browser/policies/managed/kiosk-mic.json 2>/dev/null || true
 cp /etc/chromium/policies/managed/kiosk-mic.json /etc/opt/chrome/policies/managed/kiosk-mic.json 2>/dev/null || true
-ok "Chromium policy installed"
+ok "Chromium/Chrome policies installed"
 
 # ---------------------------------------------------------
 banner "11) Create kiosk launcher scripts & autostart entry"
@@ -242,16 +262,19 @@ START_KIOSK="$PI_HOME/start-kiosk.sh"
 EXIT_KIOSK="$PI_HOME/exit-kiosk.sh"
 AUTOSTART_DIR="$PI_HOME/.config/autostart"
 OPENBOX_DIR="$PI_HOME/.config/openbox"
-KIOSK_DESKTOP="$AUTOSTART_DIR/kiosk.desktop"
-OPENBOX_RC="$OPENBOX_DIR/lxde-pi-rc.xml"
+LXDE_DIR="$PI_HOME/.config/lxsession/LXDE-pi"
+CHROME_DATA_DIR="$PI_HOME/.config/spectrabox-chrome"
 
-# Prefer HTTPS if certs exist
+# Prefer HTTPS if ssl/ exists; also accept legacy certs folder
 URL="http://localhost:${PORT}"
-if [[ -f "$CERT_DIR/server.crt" && -f "$CERT_DIR/server.key" ]]; then
+if [[ -f "$SSL_DIR/cert.pem" && -f "$SSL_DIR/key.pem" ]]; then
+  URL="https://localhost:${PORT}"
+elif [[ -f "$LEGACY_CERT_DIR/server.crt" && -f "$LEGACY_CERT_DIR/server.key" ]]; then
   URL="https://localhost:${PORT}"
 fi
 
-install -d -m 755 "$AUTOSTART_DIR" "$OPENBOX_DIR"
+install -d -m 755 "$AUTOSTART_DIR" "$OPENBOX_DIR" "$CHROME_DATA_DIR"
+chown -R "$PI_USER:$PI_USER" "$CHROME_DATA_DIR"
 
 cat > "$START_KIOSK" <<EOS
 #!/usr/bin/env bash
@@ -270,6 +293,7 @@ unclutter -idle 0.5 -root >/dev/null 2>&1 &
 
 URL="${URL}"
 BROWSER_BIN="${BROWSER_BIN}"
+CHROME_DATA_DIR="${CHROME_DATA_DIR}"
 
 # ---- Wait for audio server (PipeWire or Pulse shim) ----
 for i in {1..20}; do
@@ -300,19 +324,21 @@ if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
     --app="\${URL}" \\
     --noerrdialogs \\
     --disable-session-crashed-bubble \\
+    --disable-infobars \\
+    --disable-translate \\
     --autoplay-policy=no-user-gesture-required \\
     --ignore-certificate-errors \\
+    --ignore-ssl-errors \\
     --start-maximized \\
-    --incognito \\
+    --user-data-dir="\${CHROME_DATA_DIR}" \\
     --allow-running-insecure-content \\
-    --disable-web-security \\
-    --use-fake-ui-for-media-stream \\
-    --enable-features=HardwareMediaKeyHandling \\
+    --use-fake-device-for-media-stream=false \\
+    --no-sandbox \\
+    --disable-dev-shm-usage \\
+    --disable-gpu-sandbox \\
     \${EXTRA_HTTP_FLAG}
 else
-  # Firefox ESR fallback
-  exec "\${BROWSER_BIN}" \\
-    --kiosk "\${URL}"
+  exec "\${BROWSER_BIN}" --kiosk "\${URL}"
 fi
 EOS
 chmod +x "$START_KIOSK"
@@ -327,7 +353,7 @@ EOS
 chmod +x "$EXIT_KIOSK"
 chown "$PI_USER:$PI_USER" "$EXIT_KIOSK"
 
-cat > "$KIOSK_DESKTOP" <<EOF
+cat > "$AUTOSTART_DIR/kiosk.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=SpectraBox Kiosk
@@ -336,12 +362,10 @@ X-GNOME-Autostart-enabled=true
 EOF
 chown -R "$PI_USER:$PI_USER" "$AUTOSTART_DIR"
 
-# --- LXDE autostart fallback (non-audio change, helps on some Pi images) ---
-LXDE_DIR="$PI_HOME/.config/lxsession/LXDE-pi"
+# LXDE autostart fallback (helps on some Pi images)
 if [[ -d "$LXDE_DIR" ]]; then
   AUTOSTART_FILE="$LXDE_DIR/autostart"
   install -d -m 755 "$LXDE_DIR"
-  # Add our launcher if not present
   if [[ ! -f "$AUTOSTART_FILE" ]] || ! grep -q "start-kiosk.sh" "$AUTOSTART_FILE"; then
     echo "@/bin/bash -lc \"$START_KIOSK\"" >> "$AUTOSTART_FILE"
   fi
@@ -349,7 +373,8 @@ if [[ -d "$LXDE_DIR" ]]; then
   ok "LXDE autostart fallback configured"
 fi
 
-# Emergency exit keybinding (Ctrl+Alt+X) for Openbox/LXDE (created if not present)
+# Emergency exit keybinding (Ctrl+Alt+X) for Openbox/LXDE
+OPENBOX_RC="$OPENBOX_DIR/lxde-pi-rc.xml"
 if [[ ! -f "$OPENBOX_RC" ]]; then
   cat > "$OPENBOX_RC" <<'EOF'
 <openbox_config>
@@ -367,31 +392,4 @@ ok "Kiosk autostart configured"
 # ---------------------------------------------------------
 banner "12) Permissions & logs"
 mkdir -p /var/log/spectrabox
-chown "$PI_USER:$PI_USER" /var/log/spectrabox
-chown -R "$PI_USER:$PI_USER" "$APP_DIR"
-ok "Ownership & log dir applied"
-
-# ---------------------------------------------------------
-banner "13) Quick health check"
-if command -v curl >/div/null 2>&1 && \
-   (curl -sk "http://localhost:${PORT}/api/health" >/dev/null 2>&1 || \
-    curl -sk "https://localhost:${PORT}/api/health" >/dev/null 2>&1); then
-  ok "Server responded to /api/health"
-else
-  warn "Server not responding yet—systemd may still be starting it (or endpoint not present)."
-fi
-
-# ---------------------------------------------------------
-banner "14) Final notes"
-echo "  • Service : ${SERVICE_NAME} — status with: sudo systemctl status ${SERVICE_NAME}"
-echo "  • App Dir : ${APP_DIR}"
-echo "  • URL     : ${URL}"
-echo "  • Kiosk   : Autostarts at login; emergency exit Ctrl+Alt+X"
-echo "  • Start/Stop kiosk manually: '${START_KIOSK}' / '${EXIT_KIOSK}'"
-echo "  • Install log: ${INSTALL_LOG}"
-
-ok "Install complete. Reboot recommended."
-read -r -p "Reboot now to enter kiosk mode? [Y/n] " ans
-if [[ "${ans:-Y}" =~ ^[Yy]$ ]]; then
-  reboot
-fi
+chown "$PI_USER:$PI_USER" /var/lo
