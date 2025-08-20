@@ -371,6 +371,49 @@ The kiosk setup creates these files:
 - `~/.config/autostart/kiosk.desktop` - Autostart configuration
 - `~/.config/openbox/lxde-pi-rc.xml` - Emergency exit shortcut
 
+### Web-Based Kiosk Control
+
+SpectraBox includes web-based kiosk control buttons in the Server settings tab that allow you to manage kiosk mode remotely:
+
+#### Close Kiosk
+Exits kiosk mode while keeping the server running:
+1. Open the SpectraBox interface
+2. Go to Settings → Server
+3. Click the "Close Kiosk" button
+4. Confirm when prompted
+
+#### Reboot Server
+Closes kiosk, reboots the system, and automatically restarts kiosk mode:
+1. Open the SpectraBox interface
+2. Go to Settings → Server
+3. Click the "Reboot Server" button
+4. Confirm when prompted (system will be unavailable during reboot)
+
+Both features require proper sudo permissions for the `pi` user. To enable passwordless kiosk exit and reboot, create a sudoers file:
+
+```bash
+sudo tee /etc/sudoers.d/spectrabox-kiosk > /dev/null << 'EOF'
+# Allow pi user to manage kiosk processes and system reboot without password
+pi ALL=(ALL) NOPASSWD: /usr/bin/pkill
+pi ALL=(ALL) NOPASSWD: /bin/systemctl stop spectrabox-kiosk.service
+pi ALL=(ALL) NOPASSWD: /bin/systemctl stop spectrabox-kiosk
+pi ALL=(ALL) NOPASSWD: /sbin/reboot
+EOF
+```
+
+**Security Note:** This configuration allows the `pi` user to run specific commands without a password. Only use this on dedicated kiosk systems where the `pi` user has physical access to the device.
+
+**Environment Variable Override:**
+On non-Linux systems, you can enable kiosk exit functionality by setting:
+```bash
+export ALLOW_KIOSK_EXIT=true
+```
+
+**Troubleshooting Kiosk Exit:**
+- If the web button doesn't work, use the emergency shortcut: **Ctrl+Alt+X**
+- If systemd services aren't found, the system will fall back to process termination
+- Check server logs for detailed error messages: `journalctl -u spectrabox -f`
+
 ## Troubleshooting
 
 ### Installation Issues

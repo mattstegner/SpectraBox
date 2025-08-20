@@ -56,6 +56,15 @@ class LevelMeters {
         };
         this.currentMeterSpeed = this.meterSpeeds.medium;  // Default to medium speed
         
+        // === RMS BALLISTICS MULTIPLIER ===
+        // Controls how much slower RMS meters should be compared to peak meters
+        // 1.0 = same speed as peak meters, 2.0 = twice as slow, etc.
+        // 
+        // To adjust this value during runtime, use the browser console:
+        // analyzer.levelMeters.setRmsBallasticsMultiplier(3.0);  // Make RMS 3x slower
+        // 
+        this.rmsBallasticsMultiplier = 2.0;  // Default: RMS meters are 2x slower than peak meters
+        
         // === METER LAYOUT POSITIONS ===
         // These will be calculated in updateLayout()
         this.peakLeftMeter = 0;
@@ -69,8 +78,9 @@ class LevelMeters {
         this.correlationMeterHeight = 15;       // Height of correlation meter
         
         // === NUMERICAL DISPLAY TIMING ===
-        this.lastNumDisplayUpdate = 0;          // Timestamp of last numerical display update
-        this.numDisplayUpdateInterval = 150;    // Update interval in milliseconds (150ms = 6.7 times per second)
+        this.lastNumDisplayUpdate = 0;          // Timestamp of last peak numerical display update
+        this.lastRmsDisplayUpdate = 0;          // Timestamp of last RMS numerical display update
+        this.numDisplayUpdateInterval = 150;    // Update interval for peak displays in milliseconds (150ms = 6.7 times per second)
         this.storedDisplayValues = {            // Cached display strings for each meter
             peakLeft: '-60.0',
             peakRight: '-60.0',
@@ -142,6 +152,28 @@ class LevelMeters {
      */
     setMeterSpeed(speedName) {
         this.currentMeterSpeed = this.meterSpeeds[speedName];
+    }
+    
+    /**
+     * Set the RMS ballistics multiplier
+     * @param {number} multiplier - How much slower RMS meters should be (1.0 = same speed, 2.0 = twice as slow)
+     * 
+     * Examples:
+     * - 1.0: RMS meters respond at the same speed as peak meters
+     * - 2.0: RMS meters respond twice as slowly (default)
+     * - 3.0: RMS meters respond three times as slowly
+     * - 0.5: Invalid, will be clamped to 1.0 minimum
+     */
+    setRmsBallasticsMultiplier(multiplier) {
+        this.rmsBallasticsMultiplier = Math.max(1.0, multiplier);  // Minimum 1.0 (same speed as peak)
+    }
+    
+    /**
+     * Calculate the RMS numerical display update interval based on the ballistics multiplier
+     * @returns {number} Update interval in milliseconds for RMS displays
+     */
+    getRmsDisplayUpdateInterval() {
+        return this.numDisplayUpdateInterval * this.rmsBallasticsMultiplier;
     }
     
     /**
@@ -224,9 +256,9 @@ class LevelMeters {
         this.peakLevelLeft = this.smoothPeakLevel(this.peakLevelLeft, peakLeft, deltaTime);
         this.peakLevelRight = this.smoothPeakLevel(this.peakLevelRight, peakRight, deltaTime);
         
-        // Smooth RMS levels (same smoothing algorithm works for both peak and RMS)
-        this.rmsLevelLeft = this.smoothPeakLevel(this.rmsLevelLeft, rmsLeft, deltaTime);
-        this.rmsLevelRight = this.smoothPeakLevel(this.rmsLevelRight, rmsRight, deltaTime);
+        // Smooth RMS levels (slower ballistics using dedicated RMS smoothing function)
+        this.rmsLevelLeft = this.smoothRmsLevel(this.rmsLevelLeft, rmsLeft, deltaTime);
+        this.rmsLevelRight = this.smoothRmsLevel(this.rmsLevelRight, rmsRight, deltaTime);
         
         // === UPDATE HOLD INDICATORS ===
         // Hold indicators track the highest levels reached for a specified duration
@@ -477,19 +509,61 @@ class LevelMeters {
     }
     
     /**
-     * Updates the stored numerical display values at a controlled rate (150ms intervals)
-     * This prevents the numerical readings from updating too rapidly and becoming hard to read
+     * Applies attack/release smoothing to RMS level meter readings with adjustable ballistics
+     * Uses slower ballistics than peak meters by applying the rmsBallasticsMultiplier
+     * 
+     * @param {number} currentLevel - Current smoothed level in dB
+     * @param {number} targetLevel - New measured level in dB
+     * @param {number} deltaTime - Time elapsed since last update in seconds (unused in this implementation)
+     * @returns {number} New smoothed level in dB
+     */
+    smoothRmsLevel(currentLevel, targetLevel, deltaTime) {
+        // Convert dB levels to linear amplitude for smoother calculations
+        const currentLinear = Math.pow(10, currentLevel / 20);
+        const targetLinear = Math.pow(10, targetLevel / 20);
+        
+        // Calculate adjusted speeds for RMS meters (slower than peak meters)
+        // Higher values = slower response (approaching 1.0 = very slow)
+        const adjustedAttack = 1 - ((1 - this.currentMeterSpeed.attack) / this.rmsBallasticsMultiplier);
+        const adjustedRelease = 1 - ((1 - this.currentMeterSpeed.release) / this.rmsBallasticsMultiplier);
+        
+        let smoothedLinear;
+        
+        if (targetLinear > currentLinear) {
+            // === ATTACK PHASE ===
+            // When sound gets louder, use slower attack speed for RMS
+            smoothedLinear = targetLinear * (1 - adjustedAttack) + currentLinear * adjustedAttack;
+        } else {
+            // === RELEASE PHASE ===
+            // When sound gets quieter, use slower release speed for RMS
+            smoothedLinear = targetLinear * (1 - adjustedRelease) + currentLinear * adjustedRelease;
+        }
+        
+        // Convert back to dB scale, ensuring we don't go below minimum
+        const smoothedDB = 20 * Math.log10(smoothedLinear + 1e-10);
+        return Math.max(-60, smoothedDB);  // Clamp to minimum displayable level
+    }
+    
+    /**
+     * Updates the stored numerical display values at controlled rates
+     * Peak displays update at base interval, RMS displays update slower based on ballistics multiplier
      */
     updateStoredDisplayValues() {
         const currentTime = performance.now();
         
-        // Only update if enough time has passed since last update
+        // Update peak displays at base rate
         if (currentTime - this.lastNumDisplayUpdate >= this.numDisplayUpdateInterval) {
             this.storedDisplayValues.peakLeft = this.peakLevelLeft.toFixed(1);
             this.storedDisplayValues.peakRight = this.peakLevelRight.toFixed(1);
+            this.lastNumDisplayUpdate = currentTime;
+        }
+        
+        // Update RMS displays at slower rate based on ballistics multiplier
+        const rmsUpdateInterval = this.getRmsDisplayUpdateInterval();
+        if (currentTime - this.lastRmsDisplayUpdate >= rmsUpdateInterval) {
             this.storedDisplayValues.rmsLeft = this.rmsLevelLeft.toFixed(1);
             this.storedDisplayValues.rmsRight = this.rmsLevelRight.toFixed(1);
-            this.lastNumDisplayUpdate = currentTime;
+            this.lastRmsDisplayUpdate = currentTime;
         }
     }
     

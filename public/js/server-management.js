@@ -22,7 +22,9 @@ class ServerManager {
       updateStatusDisplay: null,
       checkUpdatesBtn: null,
       performUpdateBtn: null,
-      repositoryInfoDisplay: null
+      repositoryInfoDisplay: null,
+      closeKioskBtn: null,
+      rebootServerBtn: null
     };
   }
 
@@ -41,6 +43,8 @@ class ServerManager {
       this.elements.checkUpdatesBtn = document.getElementById('checkUpdatesBtn');
       this.elements.performUpdateBtn = document.getElementById('performUpdateBtn');
       this.elements.repositoryInfoDisplay = document.getElementById('repositoryInfoDisplay');
+      this.elements.closeKioskBtn = document.getElementById('closeKioskBtn');
+      this.elements.rebootServerBtn = document.getElementById('rebootServerBtn');
 
       // Check if elements exist (server tab might not be visible)
       if (!this.elements.currentVersionDisplay) {
@@ -461,6 +465,18 @@ class ServerManager {
         this.performUpdate();
       });
     }
+
+    if (this.elements.closeKioskBtn) {
+      this.elements.closeKioskBtn.addEventListener('click', () => {
+        this.closeKiosk();
+      });
+    }
+
+    if (this.elements.rebootServerBtn) {
+      this.elements.rebootServerBtn.addEventListener('click', () => {
+        this.rebootServer();
+      });
+    }
   }
 
   /**
@@ -586,6 +602,57 @@ class ServerManager {
       this.elements.performUpdateBtn.disabled = false;
       this.elements.checkUpdatesBtn.disabled = false;
       this.elements.performUpdateBtn.textContent = 'Update Server';
+    }
+  }
+
+  /**
+   * Close kiosk mode
+   */
+  async closeKiosk() {
+    // Confirm with user before proceeding
+    const confirmMessage = 'Close kiosk now?\n\nChromium will be terminated on this device.';
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      // Disable button while processing
+      this.elements.closeKioskBtn.disabled = true;
+      this.elements.closeKioskBtn.textContent = 'Closing...';
+
+      console.log('Attempting to close kiosk...');
+
+      const response = await fetch('/api/kiosk/exit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('Kiosk closed successfully:', data);
+        this.showToast('success', data.userFriendlyMessage || 'Kiosk closed. You can now access the desktop.');
+        
+        // Reset button after a delay
+        setTimeout(() => {
+          if (this.elements.closeKioskBtn) {
+            this.elements.closeKioskBtn.disabled = false;
+            this.elements.closeKioskBtn.textContent = 'Close Kiosk';
+          }
+        }, 3000);
+      } else {
+        throw new Error(data.userFriendlyMessage || data.message || 'Failed to close kiosk');
+      }
+    } catch (error) {
+      console.error('Error closing kiosk:', error);
+      this.showToast('error', `Error: ${error.message}`);
+      
+      // Reset button state
+      this.elements.closeKioskBtn.disabled = false;
+      this.elements.closeKioskBtn.textContent = 'Close Kiosk';
     }
   }
 
@@ -1111,6 +1178,111 @@ class ServerManager {
     if (this.elements.performUpdateBtn) {
       this.elements.performUpdateBtn.disabled = true;
     }
+  }
+
+  /**
+   * Reboot the server system
+   */
+  async rebootServer() {
+    // Confirm with user before proceeding
+    const confirmMessage = 'Are you sure you want to reboot the server?\n\nThis will:\n• Close the kiosk mode\n• Restart the entire system\n• Automatically relaunch kiosk mode after boot\n\nThe server will be unavailable during the reboot process.';
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      // Disable the button and show loading state
+      this.elements.rebootServerBtn.disabled = true;
+      this.elements.rebootServerBtn.textContent = 'Rebooting...';
+
+      // Make API call to reboot system
+      const response = await fetch('/api/system/reboot', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        this.showToast('success', 'System reboot initiated. The server will be unavailable during restart.');
+        
+        // Show a countdown or additional message since the connection will be lost
+        setTimeout(() => {
+          this.showToast('success', 'Server is rebooting. Please wait for the system to come back online.');
+        }, 2000);
+        
+      } else {
+        this.showToast('error', result.userFriendlyMessage || result.message || 'Failed to initiate system reboot');
+        
+        // Re-enable button on failure
+        this.elements.rebootServerBtn.disabled = false;
+        this.elements.rebootServerBtn.textContent = 'Reboot Server';
+      }
+
+    } catch (error) {
+      console.error('Error rebooting server:', error);
+      this.showToast('error', 'Network error: Failed to communicate with server');
+      
+      // Re-enable button on error
+      this.elements.rebootServerBtn.disabled = false;
+      this.elements.rebootServerBtn.textContent = 'Reboot Server';
+    }
+  }
+
+  /**
+   * Show toast notification
+   * @param {string} type - 'success' or 'error'
+   * @param {string} message - Message to display
+   */
+  showToast(type, message) {
+    // Remove any existing toast
+    const existingToast = document.getElementById('kioskToast');
+    if (existingToast) {
+      existingToast.remove();
+    }
+
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.id = 'kioskToast';
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      border-radius: 4px;
+      color: white;
+      font-size: 14px;
+      font-weight: bold;
+      z-index: 10000;
+      max-width: 300px;
+      word-wrap: break-word;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: opacity 0.3s ease;
+      ${type === 'success' ? 
+        'background-color: #00aa00; border: 1px solid #00cc00;' : 
+        'background-color: #cc4400; border: 1px solid #ff5500;'
+      }
+    `;
+    
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.style.opacity = '0';
+        setTimeout(() => {
+          if (toast.parentNode) {
+            toast.remove();
+          }
+        }, 300);
+      }
+    }, 5000);
+
+    console.log(`Toast (${type}): ${message}`);
   }
 
   /**

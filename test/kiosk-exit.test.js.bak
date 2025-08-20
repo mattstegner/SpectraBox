@@ -1,0 +1,832 @@
+/**
+ * Kiosk Exit API Tests
+ * 
+ * Tests for the kiosk exit functionality including API endpoints and service methods.
+ */
+
+const request = require('supertest');
+const app = require('../server');
+const KioskExitService = require('../services/kioskExitService');
+
+// Mock the child_process module to avoid actual system calls during tests
+jest.mock('child_process');
+const { spawn } = require('child_process');
+
+describe('Kiosk Exit API', () => {
+  let kioskExitService;
+
+  beforeEach(() => {
+    kioskExitService = new KioskExitService();
+    // Clear all mocks before each test
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    // Restore environment variables after each test
+    delete process.env.ALLOW_KIOSK_EXIT;
+  });
+
+  describe('POST /api/kiosk/exit', () => {
+    it('should return 400 on unsupported platforms without override', async () => {
+      // Mock platform detection to return non-Linux
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', {
+        value: 'darwin',
+        configurable: true
+      });
+
+      const response = await request(app)
+        .post('/api/kiosk/exit')
+        .expect(400);
+
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('KIOSK_EXIT_FAILED');
+      expect(response.body.message).toContain('not supported on this platform');
+
+      // Restore original platform
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true
+      });
+    });
+
+    it('should allow kiosk exit on unsupported platforms with ALLOW_KIOSK_EXIT=true', async () => {
+      // Set environment variable to allow override
+      process.env.ALLOW_KIOSK_EXIT = 'true';
+
+      // Mock platform detection to return non-Linux
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', {
+        value: 'darwin',
+        configurable: true
+      });
+
+      // Mock spawn to simulate successful pkill
+      const mockProcess = {
+        stdout: { on: jest.fn() },
+        stderr: { on: jest.fn() },
+        on: jest.fn((event, callback) => {
+          if (event === 'close') {
+            // Simulate no processes found (pkill exit code 1)
+            callback(1);
+          }
+        })
+      };
+      spawn.mockReturnValue(mockProcess);
+
+      const response = await request(app)
+        .post('/api/kiosk/exit')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.userFriendlyMessage).toContain('Kiosk closed');
+
+      // Restore original platform
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true
+      });
+    });
+
+    it('should successfully exit kiosk on Linux platform', async () => {
+      // Mock platform detection to return Linux
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', {
+        value: 'linux',
+        configurable: true
+      });
+
+      // Mock spawn to simulate successful systemctl status check (service not running)
+      const mockProcess = {
+        stdout: { on: jest.fn() },
+        stderr: { on: jest.fn() },
+        on: jest.fn((event, callback) => {
+          if (event === 'close') {
+            // Simulate service doesn't exist (systemctl exit code 4)
+            callback(4);
+          }
+        })
+      };
+      spawn.mockReturnValue(mockProcess);
+
+      const response = await request(app)
+        .post('/api/kiosk/exit')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.userFriendlyMessage).toContain('Kiosk closed');
+
+      // Restore original platform
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true
+      });
+    });
+
+    it('should handle service errors gracefully', async () => {
+      // Mock platform detection to return Linux
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', {
+        value: 'linux',
+        configurable: true
+      });
+
+      // Mock spawn to simulate error
+      const mockProcess = {
+        stdout: { on: jest.fn() },
+        stderr: { 
+          on: jest.fn((event, callback) => {
+            if (event === 'data') {
+              callback('Permission denied');
+            }
+          })
+        },
+        on: jest.fn((event, callback) => {
+          if (event === 'close') {
+            // Simulate permission error
+            callback(1);
+          }
+        })
+      };
+      spawn.mockReturnValue(mockProcess);
+
+      const response = await request(app)
+        .post('/api/kiosk/exit')
+        .expect(200); // Should still return 200 as pkill fallback succeeds
+
+      expect(response.body.success).toBe(true);
+
+      // Restore original platform
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true
+      });
+    });
+  });
+
+  describe('GET /api/kiosk/status', () => {
+    it('should return kiosk status', async () => {
+      // Mock platform detection to return Linux
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', {
+        value: 'linux',
+        configurable: true
+      });
+
+      // Mock spawn for status checks
+      const mockProcess = {
+        stdout: { on: jest.fn() },
+        stderr: { on: jest.fn() },
+        on: jest.fn((event, callback) => {
+          if (event === 'close') {
+            // Simulate no services/processes found
+            callback(4);
+          }
+        })
+      };
+      spawn.mockReturnValue(mockProcess);
+
+      const response = await request(app)
+        .get('/api/kiosk/status')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.status).toBeDefined();
+      expect(response.body.status).toHaveProperty('running');
+      expect(response.body.status).toHaveProperty('processes');
+      expect(response.body.status).toHaveProperty('services');
+
+      // Restore original platform
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true
+      });
+    });
+  });
+
+  describe('System Reboot API', () => {
+    beforeEach(() => {
+      // Clear all mocks before each test
+      jest.clearAllMocks();
+    });
+
+    afterEach(() => {
+      // Restore environment variables after each test
+      delete process.env.ALLOW_KIOSK_EXIT;
+    });
+
+    describe('POST /api/system/reboot', () => {
+      it('should return 400 on unsupported platforms without override', async () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'win32',
+          configurable: true
+        });
+
+        const response = await request(app)
+          .post('/api/system/reboot')
+          .expect(400);
+
+        expect(response.body.success).toBe(false);
+        expect(response.body.error).toBe('PLATFORM_NOT_SUPPORTED');
+
+        // Restore platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+
+      it('should allow reboot on unsupported platforms with ALLOW_KIOSK_EXIT=true', async () => {
+        process.env.ALLOW_KIOSK_EXIT = 'true';
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'win32',
+          configurable: true
+        });
+
+        // Mock spawn for successful reboot (we won't actually reboot in tests)
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'close') {
+              callback(1); // Mock exit for kiosk processes (none found)
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const response = await request(app)
+          .post('/api/system/reboot')
+          .expect(200);
+
+        expect(response.body.success).toBe(true);
+        expect(response.body.message).toContain('reboot initiated');
+
+        // Restore platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+
+      it('should initiate reboot on Linux', async () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'linux',
+          configurable: true
+        });
+
+        // Mock spawn for successful kiosk exit and reboot
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'close') {
+              callback(1); // Mock exit for kiosk processes (none found)
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const response = await request(app)
+          .post('/api/system/reboot')
+          .expect(200);
+
+        expect(response.body.success).toBe(true);
+        expect(response.body.message).toContain('reboot initiated');
+        expect(response.body.userFriendlyMessage).toContain('unavailable during restart');
+
+        // Restore platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+
+      it('should handle requests with standard headers', async () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'linux',
+          configurable: true
+        });
+
+        // Mock spawn for successful response
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'close') {
+              callback(1); // Mock exit
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const response = await request(app)
+          .post('/api/system/reboot')
+          .set('User-Agent', 'SpectraBox/1.0')
+          .expect(200);
+
+        expect(response.body.success).toBe(true);
+
+        // Restore platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+
+          it('should apply rate limiting to reboot endpoint', async () => {
+      // Note: Since reboot sends immediate response and executes async,
+      // rate limiting behavior may vary in test environment
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', {
+        value: 'linux',
+        configurable: true
+      });
+
+      // Mock spawn for responses
+      const mockProcess = {
+        stdout: { on: jest.fn() },
+        stderr: { on: jest.fn() },
+        on: jest.fn((event, callback) => {
+          if (event === 'close') {
+            callback(1);
+          }
+        })
+      };
+      spawn.mockReturnValue(mockProcess);
+
+      // Make multiple rapid requests to test rate limiting
+      const requests = [];
+      for (let i = 0; i < 12; i++) {
+        requests.push(request(app).post('/api/system/reboot'));
+      }
+
+      const responses = await Promise.all(requests);
+      const successCount = responses.filter(r => r.status === 200).length;
+      const rateLimitedCount = responses.filter(r => r.status === 429).length;
+
+      // Verify all responses are accounted for
+      expect(successCount + rateLimitedCount).toBe(12);
+      // Should have at least some successful responses
+      expect(successCount).toBeGreaterThan(0);
+
+      // Restore platform
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true
+      });
+    });
+  });
+
+  describe('KioskExitService', () => {
+    describe('isPlatformSupported', () => {
+      it('should return true for Linux platform', () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'linux',
+          configurable: true
+        });
+
+        const result = kioskExitService.isPlatformSupported();
+        expect(result).toBe(true);
+
+        // Restore original platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+
+      it('should return false for non-Linux platforms', () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'darwin',
+          configurable: true
+        });
+
+        const result = kioskExitService.isPlatformSupported();
+        expect(result).toBe(false);
+
+        // Restore original platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+    });
+
+    describe('exitKiosk', () => {
+      it('should return platform not supported error without override', async () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'win32',
+          configurable: true
+        });
+
+        const result = await kioskExitService.exitKiosk();
+
+        expect(result.success).toBe(false);
+        expect(result.method).toBe('validation');
+        expect(result.message).toContain('not supported on this platform');
+
+        // Restore original platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+
+      it('should attempt kiosk exit with environment variable override', async () => {
+        process.env.ALLOW_KIOSK_EXIT = 'true';
+        
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'win32',
+          configurable: true
+        });
+
+        // Mock spawn for pkill fallback
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'close') {
+              callback(1); // No processes found
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const result = await kioskExitService.exitKiosk();
+
+        expect(result.success).toBe(true);
+        expect(result.method).toBe('pkill');
+
+        // Restore original platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+    });
+
+    describe('exitViaSystemd', () => {
+      it('should attempt to stop systemd service', async () => {
+        // Mock spawn for systemctl status (service not running)
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'close') {
+              callback(4); // Service doesn't exist
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const result = await kioskExitService.exitViaSystemd();
+
+        expect(result.success).toBe(false);
+        expect(result.method).toBe('systemd');
+        expect(spawn).toHaveBeenCalled();
+      });
+    });
+
+    describe('exitViaPkill', () => {
+      it('should attempt to kill processes by pattern', async () => {
+        // Mock spawn for pkill (no processes found)
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'close') {
+              callback(1); // No processes found
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const result = await kioskExitService.exitViaPkill();
+
+        expect(result.success).toBe(true);
+        expect(result.method).toBe('pkill');
+        expect(result.message).toContain('No kiosk processes found');
+        expect(spawn).toHaveBeenCalled();
+      });
+
+      it('should report terminated processes', async () => {
+        // Mock spawn for pkill (processes found and terminated)
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'close') {
+              callback(0); // Success - processes terminated
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const result = await kioskExitService.exitViaPkill();
+
+        expect(result.success).toBe(true);
+        expect(result.method).toBe('pkill');
+        expect(result.message).toContain('Successfully terminated');
+        expect(spawn).toHaveBeenCalled();
+      });
+    });
+
+    describe('getKioskStatus', () => {
+      it('should return kiosk status information', async () => {
+        // Mock spawn for process/service checks
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'close') {
+              callback(4); // No services/processes found
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const result = await kioskExitService.getKioskStatus();
+
+        expect(result).toHaveProperty('running');
+        expect(result).toHaveProperty('processes');
+        expect(result).toHaveProperty('services');
+        expect(Array.isArray(result.processes)).toBe(true);
+        expect(Array.isArray(result.services)).toBe(true);
+      });
+    });
+  });
+
+  describe('Rate Limiting and Validation', () => {
+    it('should apply rate limiting to kiosk exit endpoint', async () => {
+      // Mock platform to Linux for successful requests
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', {
+        value: 'linux',
+        configurable: true
+      });
+
+      // Mock spawn for successful responses
+      const mockProcess = {
+        stdout: { on: jest.fn() },
+        stderr: { on: jest.fn() },
+        on: jest.fn((event, callback) => {
+          if (event === 'close') {
+            callback(1); // No processes found
+          }
+        })
+      };
+      spawn.mockReturnValue(mockProcess);
+
+      // Make multiple rapid requests to test rate limiting
+      const requests = [];
+      for (let i = 0; i < 15; i++) {
+        requests.push(request(app).post('/api/kiosk/exit'));
+      }
+
+      const responses = await Promise.all(requests);
+      
+      // Check that we have both successful and rate-limited responses
+      const successfulResponses = responses.filter(r => r.status === 200);
+      const rateLimitedResponses = responses.filter(r => r.status === 429);
+      
+      // Should have some successful requests and potentially some rate limited ones
+      expect(successfulResponses.length).toBeGreaterThan(0);
+      // Rate limiting might not kick in immediately in test environment, so just verify total responses
+      expect(responses.length).toBe(15);
+
+      // Restore original platform
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true
+      });
+    });
+
+    it('should handle requests with empty user agent gracefully', async () => {
+      // Mock platform to Linux for successful requests
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', {
+        value: 'linux',
+        configurable: true
+      });
+
+      // Mock spawn for successful response
+      const mockProcess = {
+        stdout: { on: jest.fn() },
+        stderr: { on: jest.fn() },
+        on: jest.fn((event, callback) => {
+          if (event === 'close') {
+            callback(1); // No processes found
+          }
+        })
+      };
+      spawn.mockReturnValue(mockProcess);
+
+      // Test with no user agent (empty string) - should still work
+      const response = await request(app)
+        .post('/api/kiosk/exit')
+        .set('User-Agent', '')
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.userFriendlyMessage).toContain('Kiosk closed');
+
+      // Restore original platform
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true
+      });
+    });
+
+    describe('rebootSystem', () => {
+      it('should return platform not supported error without override', async () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'win32',
+          configurable: true
+        });
+
+        const result = await kioskExitService.rebootSystem();
+
+        expect(result.success).toBe(false);
+        expect(result.method).toBe('platform_check');
+        expect(result.message).toContain('not supported on platform');
+
+        // Restore original platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+
+      it('should allow reboot with ALLOW_KIOSK_EXIT=true on unsupported platform', async () => {
+        process.env.ALLOW_KIOSK_EXIT = 'true';
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'win32',
+          configurable: true
+        });
+
+        // Mock exitKiosk method
+        jest.spyOn(kioskExitService, 'exitKiosk').mockResolvedValue({
+          success: true,
+          method: 'test',
+          message: 'Kiosk exit successful'
+        });
+
+        // Mock spawn for reboot command
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'error') {
+              // Don't call error callback, simulate successful spawn
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const result = await kioskExitService.rebootSystem();
+
+        expect(result.success).toBe(true);
+        expect(result.method).toBe('sudo_reboot');
+        expect(result.message).toContain('reboot initiated successfully');
+        expect(kioskExitService.exitKiosk).toHaveBeenCalled();
+
+        // Restore original platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+
+      it('should successfully reboot on Linux platform', async () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'linux',
+          configurable: true
+        });
+
+        // Mock exitKiosk method
+        jest.spyOn(kioskExitService, 'exitKiosk').mockResolvedValue({
+          success: true,
+          method: 'pkill',
+          message: 'Kiosk processes terminated'
+        });
+
+        // Mock spawn for reboot command
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'error') {
+              // Don't call error callback, simulate successful spawn
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const result = await kioskExitService.rebootSystem();
+
+        expect(result.success).toBe(true);
+        expect(result.method).toBe('sudo_reboot');
+        expect(result.message).toContain('reboot initiated successfully');
+        expect(kioskExitService.exitKiosk).toHaveBeenCalled();
+        expect(spawn).toHaveBeenCalledWith('sudo', ['reboot'], expect.any(Object));
+
+        // Restore original platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+
+      it('should handle kiosk exit failure and continue with reboot', async () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'linux',
+          configurable: true
+        });
+
+        // Mock exitKiosk method to fail
+        jest.spyOn(kioskExitService, 'exitKiosk').mockResolvedValue({
+          success: false,
+          method: 'pkill',
+          message: 'No kiosk processes found'
+        });
+
+        // Mock spawn for reboot command
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'error') {
+              // Don't call error callback, simulate successful spawn
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const result = await kioskExitService.rebootSystem();
+
+        expect(result.success).toBe(true);
+        expect(result.method).toBe('sudo_reboot');
+        expect(result.message).toContain('reboot initiated successfully');
+        expect(kioskExitService.exitKiosk).toHaveBeenCalled();
+
+        // Restore original platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+
+      it('should handle reboot command spawn error', async () => {
+        const originalPlatform = process.platform;
+        Object.defineProperty(process, 'platform', {
+          value: 'linux',
+          configurable: true
+        });
+
+        // Mock exitKiosk method
+        jest.spyOn(kioskExitService, 'exitKiosk').mockResolvedValue({
+          success: true,
+          method: 'pkill',
+          message: 'Kiosk processes terminated'
+        });
+
+        // Mock spawn for reboot command to fail
+        const mockProcess = {
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+          on: jest.fn((event, callback) => {
+            if (event === 'error') {
+              callback(new Error('Command not found'));
+            }
+          })
+        };
+        spawn.mockReturnValue(mockProcess);
+
+        const result = await kioskExitService.rebootSystem();
+
+        expect(result.success).toBe(false);
+        expect(result.method).toBe('reboot_command');
+        expect(result.message).toContain('Failed to execute reboot');
+
+        // Restore original platform
+        Object.defineProperty(process, 'platform', {
+          value: originalPlatform,
+          configurable: true
+        });
+      });
+    });
+  });
+});

@@ -2486,6 +2486,10 @@ window.addEventListener('load', () => {
     // Instantiate the main analyzer class, which sets up the UI and canvas
     const analyzer = new StereoSpectrumAnalyzer();
     
+    // Make analyzer globally accessible for console commands
+    window.analyzer = analyzer;
+    console.log('SpectraBox: Analyzer created and made globally accessible:', window.analyzer);
+    
     // === AUTO-START ANALYSIS ===
     // Automatically begin spectrum analysis when the page loads
     // This will prompt the user for microphone access and start visualization

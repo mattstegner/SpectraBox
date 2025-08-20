@@ -8,6 +8,7 @@ const WebSocket = require('ws');
 // Import services
 const AudioDeviceService = require('./services/audioDeviceService');
 const { PreferencesService } = require('./services/preferencesService');
+const KioskExitService = require('./services/kioskExitService');
 const PlatformDetection = require('./utils/platformDetection');
 const { logger } = require('./utils/logger');
 const PerformanceMonitor = require('./utils/performanceMonitor');
@@ -147,6 +148,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // Initialize other services
 const audioDeviceService = new AudioDeviceService();
+const kioskExitService = new KioskExitService();
 const performanceMonitor = new PerformanceMonitor();
 const versionManager = new VersionManager();
 const githubService = new GitHubService();
@@ -1448,6 +1450,175 @@ app.get('/api/system-info', (req, res) => {
   }
 });
 
+// POST /api/kiosk/exit - Exit kiosk mode
+app.post('/api/kiosk/exit', validateUpdateRequest, async (req, res) => {
+  try {
+    logger.info('Kiosk exit requested', {
+      requestId: req.id,
+      userAgent: req.get('user-agent'),
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
+
+    // Attempt to exit kiosk mode
+    const result = await kioskExitService.exitKiosk();
+    
+    if (result.success) {
+      logger.info('Kiosk exit successful', {
+        method: result.method,
+        message: result.message,
+        requestId: req.id
+      });
+
+      res.json({
+        success: true,
+        message: result.message,
+        method: result.method,
+        userFriendlyMessage: 'Kiosk closed. You can now access the desktop.'
+      });
+    } else {
+      logger.warn('Kiosk exit failed', {
+        method: result.method,
+        message: result.message,
+        requestId: req.id
+      });
+
+      // Determine appropriate status code based on the failure reason
+      let statusCode = 500;
+      if (result.message.includes('not supported on this platform')) {
+        statusCode = 400;
+      } else if (result.message.includes('permission') || result.message.includes('denied')) {
+        statusCode = 403;
+      }
+
+      res.status(statusCode).json({
+        success: false,
+        error: 'KIOSK_EXIT_FAILED',
+        message: result.message,
+        method: result.method,
+        userFriendlyMessage: 'Failed to close kiosk. ' + result.message
+      });
+    }
+  } catch (error) {
+    logger.error('Error in kiosk exit endpoint', {
+      error: error.message,
+      stack: error.stack,
+      requestId: req.id
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'KIOSK_EXIT_ERROR',
+      message: 'Internal error during kiosk exit',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      userFriendlyMessage: 'An unexpected error occurred while closing the kiosk.'
+    });
+  }
+});
+
+// POST /api/system/reboot - Reboot the system (exits kiosk and reboots)
+app.post('/api/system/reboot', validateUpdateRequest, async (req, res) => {
+  try {
+    logger.info('System reboot requested', {
+      requestId: req.id,
+      userAgent: req.get('user-agent'),
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
+
+    // Check platform support before proceeding
+    if (process.platform !== 'linux' && !process.env.ALLOW_KIOSK_EXIT) {
+      logger.warn('System reboot attempted on unsupported platform', {
+        platform: process.platform,
+        requestId: req.id
+      });
+      
+      return res.status(400).json({
+        success: false,
+        error: 'PLATFORM_NOT_SUPPORTED',
+        message: 'System reboot is only supported on Linux systems',
+        userFriendlyMessage: 'This feature is only available on Raspberry Pi systems.'
+      });
+    }
+
+    // Send response immediately before initiating reboot
+    res.json({
+      success: true,
+      message: 'System reboot initiated successfully',
+      userFriendlyMessage: 'System is rebooting. The server will be unavailable during restart.'
+    });
+
+    // Execute reboot after a brief delay to ensure response is sent
+    setTimeout(async () => {
+      try {
+        const result = await kioskExitService.rebootSystem();
+        
+        if (result.success) {
+          logger.info('System reboot initiated successfully', {
+            method: result.method,
+            message: result.message,
+            requestId: req.id
+          });
+        } else {
+          logger.error('System reboot failed', {
+            method: result.method,
+            message: result.message,
+            requestId: req.id
+          });
+        }
+      } catch (error) {
+        logger.error('Error during system reboot execution', {
+          error: error.message,
+          stack: error.stack,
+          requestId: req.id
+        });
+      }
+    }, 1000);
+
+  } catch (error) {
+    logger.error('Error in system reboot endpoint', {
+      error: error.message,
+      stack: error.stack,
+      requestId: req.id
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'SYSTEM_REBOOT_ERROR',
+      message: 'Internal error during system reboot request',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      userFriendlyMessage: 'An unexpected error occurred while initiating the reboot.'
+    });
+  }
+});
+
+// GET /api/kiosk/status - Get current kiosk status
+app.get('/api/kiosk/status', validateUpdateRequest, async (req, res) => {
+  try {
+    logger.debug('Kiosk status requested', { requestId: req.id });
+
+    const status = await kioskExitService.getKioskStatus();
+    
+    res.json({
+      success: true,
+      status: status,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error getting kiosk status', {
+      error: error.message,
+      requestId: req.id
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'KIOSK_STATUS_ERROR',
+      message: 'Failed to get kiosk status',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // 404 handler for API routes
 app.use('/api/*', (req, res) => {
   logger.warn(`API endpoint not found: ${req.originalUrl}`, {
@@ -1468,6 +1639,9 @@ app.use('/api/*', (req, res) => {
       '/api/preferences',
       '/api/preferences/ui',
       '/api/system-info',
+      '/api/kiosk/exit',
+      '/api/kiosk/status',
+      '/api/system/reboot',
     ],
   });
 });
