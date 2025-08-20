@@ -72,7 +72,7 @@ chromium-browser \
   --disable-default-apps \
   --disable-dev-shm-usage \
   --disable-extensions \
-  --disable-features=TranslateUI,VizDisplayCompositor \
+  --disable-features=TranslateUI \
   --disable-hang-monitor \
   --disable-ipc-flooding-protection \
   --disable-popup-blocking \
@@ -88,11 +88,8 @@ chromium-browser \
   --kiosk \
   --autoplay-policy=no-user-gesture-required \
   --allow-running-insecure-content \
+  --disable-features=VizDisplayCompositor \
   --start-fullscreen \
-  --hide-scrollbars \
-  --force-device-scale-factor=1 \
-  --disable-pinch \
-  --overscroll-history-navigation=0 \
   http://localhost:3000
 EOF
 

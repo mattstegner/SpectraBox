@@ -163,7 +163,7 @@ git push origin feature/new-release
 ## 📋 Installation
 For new installations:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/complete-pi-deployment.sh | bash
 ```
 
 For existing installations, the update will be available through the web interface:

@@ -70,8 +70,7 @@ class LevelMeters {
         
         // === NUMERICAL DISPLAY TIMING ===
         this.lastNumDisplayUpdate = 0;          // Timestamp of last numerical display update
-        // Will be set after Pi detection
-        this.numDisplayUpdateInterval = 150;    // Update interval in milliseconds (default)
+        this.numDisplayUpdateInterval = 150;    // Update interval in milliseconds (150ms = 6.7 times per second)
         this.storedDisplayValues = {            // Cached display strings for each meter
             peakLeft: '-60.0',
             peakRight: '-60.0',
@@ -104,12 +103,6 @@ class LevelMeters {
         // Store references to dedicated meter analyzers
         this.meterAnalyserLeft = meterAnalyserLeft;
         this.meterAnalyserRight = meterAnalyserRight;
-        
-        // Apply Pi-specific optimizations
-        const isPi = this.detectRaspberryPi();
-        if (isPi) {
-            this.numDisplayUpdateInterval = 250; // Slower updates on Pi
-        }
         
         this.lastPeakUpdateTime = performance.now();
         
@@ -908,22 +901,4 @@ class LevelMeters {
             }
         }
     }
-    
-    /**
-     * Detect if running on Raspberry Pi for performance optimizations
-     * @returns {boolean} True if likely running on Pi
-     */
-    detectRaspberryPi() {
-        // Check user agent for Pi indicators
-        const userAgent = navigator.userAgent.toLowerCase();
-        const isARM = userAgent.includes('arm') || userAgent.includes('aarch64');
-        const isLinux = userAgent.includes('linux');
-        
-        // Check for limited hardware capabilities
-        const limitedCores = navigator.hardwareConcurrency <= 4;
-        const limitedMemory = navigator.deviceMemory && navigator.deviceMemory <= 4;
-        
-        // Conservative detection - assume Pi if ARM + Linux or limited resources
-        return (isARM && isLinux) || (limitedCores && limitedMemory);
-    }
-}
+} 

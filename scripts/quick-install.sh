@@ -15,32 +15,32 @@ fi
 
 echo "📥 Downloading installation script..."
 if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o spectrabox-kiosk-install.sh https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
+    curl -fsSL -o install-spectrabox.sh https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install-spectrabox.sh
 elif command -v wget >/dev/null 2>&1; then
-    wget -O spectrabox-kiosk-install.sh https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
+    wget -O install-spectrabox.sh https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install-spectrabox.sh
 else
     echo "❌ Error: Neither curl nor wget is available"
     exit 1
 fi
 
-if [[ ! -f "spectrabox-kiosk-install.sh" ]]; then
+if [[ ! -f "install-spectrabox.sh" ]]; then
     echo "❌ Failed to download installation script"
     exit 1
 fi
 
 echo "✅ Script downloaded successfully"
 echo "🔧 Making script executable..."
-chmod +x spectrabox-kiosk-install.sh
+chmod +x install-spectrabox.sh
 
 echo "🚀 Starting installation..."
 echo ""
 
 # Run the installation script
-./spectrabox-kiosk-install.sh
+./install-spectrabox.sh
 
 # Clean up
 echo ""
 echo "🧹 Cleaning up..."
-rm -f spectrabox-kiosk-install.sh
+rm -f install-spectrabox.sh
 
 echo "✅ Quick installation complete!"

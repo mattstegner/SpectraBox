@@ -25,7 +25,7 @@ const config = {
       '--disable-infobars',
       '--disable-session-crashed-bubble',
       '--disable-translate',
-      '--disable-features=TranslateUI,VizDisplayCompositor',
+      '--disable-features=TranslateUI',
       '--autoplay-policy=no-user-gesture-required',
       '--allow-running-insecure-content',
       '--user-data-dir=' + (process.env.HOME || '/home/pi') + '/.config/spectrabox-chrome',
@@ -40,11 +40,7 @@ const config = {
       '--enable-features=HardwareMediaKeyHandling',
       '--no-sandbox', // Required for some Pi configurations
       '--disable-dev-shm-usage', // Overcome limited resource problems
-      '--disable-gpu-sandbox', // GPU sandbox can cause issues on Pi
-      '--hide-scrollbars', // Remove scrollbars for true fullscreen
-      '--force-device-scale-factor=1', // Ensure proper scaling
-      '--disable-pinch', // Disable pinch-to-zoom
-      '--overscroll-history-navigation=0' // Disable overscroll navigation
+      '--disable-gpu-sandbox' // GPU sandbox can cause issues on Pi
     ]
   },
   delays: {
