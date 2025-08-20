@@ -370,6 +370,11 @@ if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
     --disable-web-security \\
     --use-fake-ui-for-media-stream \\
     --enable-features=HardwareMediaKeyHandling \\
+    --hide-scrollbars \\
+    --force-device-scale-factor=1 \\
+    --disable-pinch \\
+    --overscroll-history-navigation=0 \\
+    --disable-features=VizDisplayCompositor \\
     \${EXTRA_HTTP_FLAG}
 else
   # Firefox ESR fallback

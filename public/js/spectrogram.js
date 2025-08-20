@@ -23,6 +23,8 @@ class StereoSpectrumAnalyzer {
         this.meterSplitter = null;          // Dedicated channel splitter for meters (null for mono inputs)
         this.isRunning = false;             // Flag to track if analysis is active
         this.animationId = null;            // ID for requestAnimationFrame loop
+        this.lastFrameTime = null;          // For frame rate limiting
+        this.isPi = false;                  // Will be set during initialization
         
         // === GAIN CONTROL SETTINGS ===
         this.inputGainDB = 0;               // Input gain in decibels (-30 to +12 dB)
@@ -114,6 +116,7 @@ class StereoSpectrumAnalyzer {
         
         // === INITIALIZATION ===
         // Set up all the interactive elements and prepare the display
+        this.isPi = this.detectRaspberryPi(); // Detect Pi for performance optimization
         this.setupEventListeners();         // Attach button clicks and settings changes
         this.resizeCanvas();                // Set canvas size to fit container
         this.drawStaticElements();          // Draw grid lines, labels, and rulers
@@ -1139,20 +1142,29 @@ class StereoSpectrumAnalyzer {
     
     /**
      * Main animation loop that continuously updates the display
-     * Uses requestAnimationFrame for smooth 60fps rendering
+     * Uses requestAnimationFrame with frame rate limiting for Pi performance
      */
     animate() {
         // === CHECK IF WE SHOULD CONTINUE ===
         // Exit immediately if stop() has been called
         if (!this.isRunning) return;
         
-        // === DRAW ONE FRAME ===
-        // Update the entire display with current audio data
-        this.draw();
+        // === FRAME RATE LIMITING FOR RASPBERRY PI ===
+        const now = performance.now();
+        const targetFPS = this.isPi ? 30 : 60; // Limit to 30fps on Pi
+        const frameInterval = 1000 / targetFPS;
+        
+        if (!this.lastFrameTime) this.lastFrameTime = now;
+        const elapsed = now - this.lastFrameTime;
+        
+        if (elapsed >= frameInterval) {
+            // === DRAW ONE FRAME ===
+            // Update the entire display with current audio data
+            this.draw();
+            this.lastFrameTime = now - (elapsed % frameInterval);
+        }
         
         // === SCHEDULE NEXT FRAME ===
-        // requestAnimationFrame calls this function again on the next display refresh
-        // This provides smooth animation at the display's refresh rate (usually 60 Hz)
         this.animationId = requestAnimationFrame(() => this.animate());
     }
     
@@ -1198,8 +1210,16 @@ class StereoSpectrumAnalyzer {
         // === CLEAR DRAWING AREAS ===
         // Clear the entire canvas to remove old rulers and labels
         this.ctx.fillStyle = '#111';                              // Dark background color
-        this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);  // Clear entire canvas
-        this.levelMeters.clearMeterArea();                        // Clear meter area
+        
+        // Optimize clearing for Pi - only clear what's needed
+        if (this.isPi) {
+            // Clear only the spectrum area and meters, not the entire canvas
+            this.ctx.fillRect(this.plotLeft, this.plotTop, this.plotWidth, this.plotHeight);
+            this.levelMeters.clearMeterArea();
+        } else {
+            this.ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);  // Clear entire canvas
+            this.levelMeters.clearMeterArea();                        // Clear meter area
+        }
         
         // === DRAW BACKGROUND GRID ===
         // Draw the frequency and amplitude grid lines
@@ -2457,6 +2477,24 @@ class StereoSpectrumAnalyzer {
         }
         
         this.ctx.stroke();
+    }
+    
+    /**
+     * Detect if running on Raspberry Pi for performance optimizations
+     * @returns {boolean} True if likely running on Pi
+     */
+    detectRaspberryPi() {
+        // Check user agent for Pi indicators
+        const userAgent = navigator.userAgent.toLowerCase();
+        const isARM = userAgent.includes('arm') || userAgent.includes('aarch64');
+        const isLinux = userAgent.includes('linux');
+        
+        // Check for limited hardware capabilities
+        const limitedCores = navigator.hardwareConcurrency <= 4;
+        const limitedMemory = navigator.deviceMemory && navigator.deviceMemory <= 4;
+        
+        // Conservative detection - assume Pi if ARM + Linux or limited resources
+        return (isARM && isLinux) || (limitedCores && limitedMemory);
     }
 }
 

@@ -14,6 +14,7 @@ const PerformanceMonitor = require('./utils/performanceMonitor');
 const VersionManager = require('./utils/versionManager');
 const GitHubService = require('./services/githubService');
 const { createError } = require('./utils/errors');
+const PiOptimizer = require('./utils/piOptimizer');
 
 const app = express();
 
@@ -145,14 +146,32 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
+// Additional Pi-specific optimizations
+const isPi = require('./utils/platformDetection').isRaspberryPi();
+if (isPi) {
+  // Force garbage collection more frequently on Pi
+  if (global.gc) {
+    setInterval(() => {
+      global.gc();
+    }, 30000); // Every 30 seconds
+  }
+  
+  // Reduce keep-alive timeout for faster connection cleanup
+  process.env.HTTP_KEEP_ALIVE_TIMEOUT = '5000';
+}
+
 // Initialize other services
 const audioDeviceService = new AudioDeviceService();
 const performanceMonitor = new PerformanceMonitor();
 const versionManager = new VersionManager();
 const githubService = new GitHubService();
+const piOptimizer = new PiOptimizer();
 
 // Set log level from environment variable
 logger.options.level = process.env.LOG_LEVEL || 'info';
+
+// Apply Pi optimizations if running on Raspberry Pi
+piOptimizer.applyOptimizations();
 
 // Middleware - optimized for Raspberry Pi
 app.use(
@@ -166,9 +185,10 @@ app.use(
 // Optimize JSON parsing for limited resources
 app.use(
   express.json({
-    limit: '512kb', // Reduce from 1mb for Raspberry Pi
+    limit: '256kb', // Further reduce for Pi
     strict: true, // Only parse objects and arrays
     type: 'application/json',
+    reviver: null, // Disable JSON reviver for performance
   })
 );
 
@@ -268,6 +288,8 @@ app.use((err, req, res, next) => {
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   const metrics = performanceMonitor.getAllMetrics();
+  const piStatus = piOptimizer.getStatus();
+  
   res.json({
     status: 'OK',
     message: 'SpectraBox server is running',
@@ -277,6 +299,22 @@ app.get('/api/health', (req, res) => {
       requests: metrics.requests.totalRequests,
       errors: metrics.requests.totalErrors,
     },
+    platform: {
+      isPi: piStatus.isPi,
+      optimized: piStatus.optimizationsApplied
+    }
+  });
+});
+
+// Pi optimization status endpoint
+app.get('/api/pi-status', (req, res) => {
+  const status = piOptimizer.getStatus();
+  const config = piOptimizer.getRecommendedConfig();
+  
+  res.json({
+    success: true,
+    status,
+    recommendedConfig: config
   });
 });
 
@@ -2025,24 +2063,24 @@ async function attemptUpdateRecovery(updateLogger, updateAttempt, originalError)
 
     // Execute recovery action
     switch (recoveryAction) {
-      case 'continue':
-        updateLogger.info('Recovery: Continuing normal operation');
-        // Don't exit, let the server continue running
-        break;
+    case 'continue':
+      updateLogger.info('Recovery: Continuing normal operation');
+      // Don't exit, let the server continue running
+      break;
         
-      case 'rollback':
-        updateLogger.info('Recovery: Attempting rollback');
-        await attemptRollback(updateLogger, updateAttempt);
-        break;
+    case 'rollback':
+      updateLogger.info('Recovery: Attempting rollback');
+      await attemptRollback(updateLogger, updateAttempt);
+      break;
         
-      case 'restart':
-      default:
-        updateLogger.info('Recovery: Restarting server');
-        setTimeout(() => {
-          updateLogger.info('Exiting for service restart after recovery attempt');
-          process.exit(1); // Exit with error code to trigger systemd restart
-        }, 3000);
-        break;
+    case 'restart':
+    default:
+      updateLogger.info('Recovery: Restarting server');
+      setTimeout(() => {
+        updateLogger.info('Exiting for service restart after recovery attempt');
+        process.exit(1); // Exit with error code to trigger systemd restart
+      }, 3000);
+      break;
     }
 
   } catch (recoveryError) {

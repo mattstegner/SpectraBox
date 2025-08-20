@@ -22,25 +22,27 @@ A real-time spectrum analyzer and audio visualization application designed to ru
 The easiest way to get SpectraBox running on a Raspberry Pi is using our automated deployment script:
 
 **Method 1: Direct Installation (fastest)**
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
+```
+
+**Method 1.5: Or, if curl errors occur, use:**
+```bash
+wget -qO- https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
+
 ```
 
 **Method 2: Alternative Installation (if you encounter download issues)**
-```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install.sh
-chmod +x install.sh
-./install.sh
-```
 
-**Method 3: Manual Installation (for advanced users)**
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install-spectrabox.sh
-chmod +x install-spectrabox.sh
-./install-spectrabox.sh
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
+chmod +x spectrabox-kiosk-install.sh
+./spectrabox-kiosk-install.sh
 ```
 
 Both methods will:
+
 - Install all required dependencies (Node.js, audio libraries, browser)
 - Set up the SpectraBox application
 - Configure automatic startup and kiosk mode
@@ -48,6 +50,7 @@ Both methods will:
 - Start the service and make it available on your network
 
 **Requirements:**
+
 - Raspberry Pi 4 or newer (Pi 4 with 2GB+ RAM recommended)
 - Raspberry Pi OS (32-bit or 64-bit)
 - Internet connection
@@ -57,6 +60,7 @@ Both methods will:
 If you encounter errors like "cho: command not found" or "curl: (23) Failure writing output to destination", use Method 2 above, which downloads the script locally first to avoid piping issues.
 
 After installation, access SpectraBox at:
+
 - **Local**: `https://localhost:3000`
 - **Network**: `https://your-pi-ip:3000`
 
@@ -65,27 +69,32 @@ After installation, access SpectraBox at:
 For development or installation on other platforms:
 
 1. **Clone the repository:**
+
 ```bash
 git clone https://github.com/mattstegner/SpectraBox.git
 cd SpectraBox
 ```
 
 2. **Install dependencies:**
+
 ```bash
 npm install
 ```
 
 **Dependencies:**
+
 - `express` - Web server framework
 - `cors` - Cross-origin resource sharing middleware
 - `ws` - WebSocket library for real-time update status communication
 
 3. **Generate SSL certificates (recommended):**
+
 ```bash
 node generate-ssl.js
 ```
 
 4. **Start the server:**
+
 ```bash
 node server.js
 ```
@@ -99,6 +108,7 @@ node server.js
 For detailed installation instructions, configuration options, troubleshooting, and advanced setup, see the **[DEPLOYMENT.md](DEPLOYMENT.md)** file.
 
 The deployment guide includes:
+
 - **Step-by-step manual installation** for custom setups
 - **Configuration options** for different environments
 - **Kiosk mode setup** for dedicated displays
@@ -126,6 +136,7 @@ By default, SpectraBox binds to `0.0.0.0:3000`, making it accessible from any de
 - **Network access**: `https://your-device-ip:3000`
 
 Find your device's IP address:
+
 - **Raspberry Pi/Linux**: `hostname -I`
 - **macOS**: `ifconfig | grep "inet "`
 - **Windows**: `ipconfig`
@@ -133,6 +144,7 @@ Find your device's IP address:
 ### Network Tab
 
 The application includes a dedicated **Network** tab in the settings that shows:
+
 - Current network status and accessibility
 - Server configuration details
 - Access URLs for local and network connections
@@ -141,6 +153,7 @@ The application includes a dedicated **Network** tab in the settings that shows:
 ### Server Tab
 
 The application includes a **Server** tab for server management:
+
 - Current version information
 - Update availability checking
 - Real-time update progress monitoring via WebSocket
@@ -183,6 +196,7 @@ SpectraBox is perfect for:
 ## System Requirements
 
 ### Minimum Requirements
+
 - **CPU**: ARM Cortex-A53 (Raspberry Pi 3B+) or equivalent x86/x64
 - **RAM**: 1GB (2GB+ recommended)
 - **Storage**: 2GB free space
@@ -190,6 +204,7 @@ SpectraBox is perfect for:
 - **Audio**: USB microphone or audio interface
 
 ### Recommended Setup
+
 - **Raspberry Pi 4** with 2GB+ RAM
 - **Class 10 SD card** or USB 3.0 storage
 - **Quality USB audio interface** for professional use

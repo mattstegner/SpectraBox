@@ -1,0 +1,47 @@
+/* Raspberry Pi Performance Optimizations */
+
+/* Disable expensive animations on Pi */
+@media (max-width: 1024px), (max-device-width: 1024px) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  /* Simplify transforms */
+  .retry-button:hover {
+    transform: none !important;
+  }
+  
+  .retry-button:active {
+    transform: none !important;
+  }
+  
+  /* Reduce visual complexity */
+  .progress-fill::after {
+    display: none; /* Disable shine animation */
+  }
+  
+  @keyframes progress-shine {
+    0%, 100% { transform: translateX(0); }
+  }
+  
+  /* Optimize canvas rendering */
+  canvas {
+    image-rendering: pixelated; /* Faster rendering */
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Force hardware acceleration where beneficial */
+.canvas-container {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Reduce repaints */
+.settings-panel {
+  contain: layout style paint;
+}

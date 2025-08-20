@@ -39,21 +39,21 @@ I've created a comprehensive, working deployment script that addresses all your 
 
 ### Method 1: Direct Installation (Fastest)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/quick-install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
 ```
 
 ### Method 2: Download and Run
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/quick-install.sh
-chmod +x quick-install.sh
-./quick-install.sh
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
+chmod +x spectrabox-kiosk-install.sh
+./spectrabox-kiosk-install.sh
 ```
 
 ### Method 3: Manual Installation
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install-spectrabox.sh
-chmod +x install-spectrabox.sh
-./install-spectrabox.sh
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
+chmod +x spectrabox-kiosk-install.sh
+./spectrabox-kiosk-install.sh
 ```
 
 ## Key Improvements Over Previous Scripts
