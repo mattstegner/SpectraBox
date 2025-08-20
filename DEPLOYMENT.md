@@ -18,21 +18,21 @@ The easiest way to deploy SpectraBox is using the complete deployment script tha
 
 **Method 1: Direct deployment (fastest)**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
 ```
 
 **Method 2: Alternative installation (recommended for compatibility)**
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install.sh
-chmod +x install.sh
-./install.sh
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
+chmod +x spectrabox-kiosk-install.sh
+sudo ./spectrabox-kiosk-install.sh
 ```
 
 **Method 3: Manual installation (for advanced users)**
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install-spectrabox.sh
-chmod +x install-spectrabox.sh
-./install-spectrabox.sh
+git clone https://github.com/mattstegner/SpectraBox.git
+cd SpectraBox
+sudo ./scripts/spectrabox-kiosk-install.sh
 ```
 
 This complete deployment script will:
@@ -57,7 +57,7 @@ This complete deployment script will:
 | Method | Pros | Cons | Best For |
 |--------|------|------|----------|
 | Method 1 (curl pipe) | Fastest, single command | May have compatibility issues on some systems | Most Debian/Ubuntu systems |
-| Method 2 (quick-install.sh) | Most compatible, avoids piping issues | Requires two commands | Systems with curl/bash compatibility issues |
+| Method 2 (download first) | Most compatible, avoids piping issues | Requires two commands | Systems with curl/bash compatibility issues |
 | Method 3 (manual install) | Can inspect before running | Manual process | Security-conscious users |
 
 **Troubleshooting Installation Issues:**
@@ -73,7 +73,7 @@ These issues are typically caused by:
 - Shell compatibility issues with certain Debian configurations
 - Permission problems with temporary file creation during piping
 
-**Note:** The new installation scripts have been redesigned to be more robust and avoid these common issues.
+**Note:** The installation script has been designed to be robust and avoid these common issues.
 
 ### Basic Deployment (Application Only)
 
@@ -85,10 +85,10 @@ git clone https://github.com/mattstegner/SpectraBox.git /home/pi/spectrabox
 cd /home/pi/spectrabox
 
 # Run the complete installation script
-sudo ./scripts/install-spectrabox.sh
+sudo ./scripts/spectrabox-kiosk-install.sh
 ```
 
-This basic script will:
+This script will:
 - Install Node.js and dependencies
 - Set up the systemd service
 - Configure SSL certificates
@@ -380,9 +380,9 @@ This error occurs when the deployment script gets corrupted during download via 
 
 *Solution:* Use the alternative installation method:
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install-spectrabox.sh
-chmod +x install-spectrabox.sh
-./install-spectrabox.sh
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
+chmod +x spectrabox-kiosk-install.sh
+sudo ./spectrabox-kiosk-install.sh
 ```
 
 **"curl: (23) Failure writing output to destination" error:**

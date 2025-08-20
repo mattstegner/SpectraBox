@@ -2,9 +2,9 @@
 
 ## Overview
 
-I've created a comprehensive, working deployment script that addresses all your requirements for deploying SpectraBox to a Raspberry Pi. The new script fixes the issues in the existing deployment scripts and provides a robust installation process.
+I've created a comprehensive, working deployment script that addresses all your requirements for deploying SpectraBox to a Raspberry Pi. The script provides a robust installation process for setting up SpectraBox with kiosk mode.
 
-## What the New Script Does
+## What the Script Does
 
 ### 1. ✅ Node.js and Dependencies Installation
 - Installs Node.js 18.x (LTS version)
@@ -39,24 +39,24 @@ I've created a comprehensive, working deployment script that addresses all your 
 
 ### Method 1: Direct Installation (Fastest)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/quick-install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
 ```
 
 ### Method 2: Download and Run
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/quick-install.sh
-chmod +x quick-install.sh
-./quick-install.sh
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
+chmod +x spectrabox-kiosk-install.sh
+sudo ./spectrabox-kiosk-install.sh
 ```
 
 ### Method 3: Manual Installation
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/install-spectrabox.sh
-chmod +x install-spectrabox.sh
-./install-spectrabox.sh
+git clone https://github.com/mattstegner/SpectraBox.git
+cd SpectraBox
+sudo ./scripts/spectrabox-kiosk-install.sh
 ```
 
-## Key Improvements Over Previous Scripts
+## Key Improvements
 
 ### 1. **Fixed SSL Certificate Paths**
 - Previous issue: `generate-ssl.js` created `ssl/key.pem` and `ssl/cert.pem`
@@ -158,4 +158,4 @@ If you encounter any issues:
 2. Run the test script: `sudo ./scripts/test-installation.sh`
 3. Check the troubleshooting section in `DEPLOYMENT.md`
 
-The new installation script is designed to be robust and handle edge cases that the previous scripts couldn't handle. It should provide a smooth, automated installation experience for your SpectraBox deployment.
+The installation script is designed to be robust and handle edge cases. It should provide a smooth, automated installation experience for your SpectraBox deployment.
