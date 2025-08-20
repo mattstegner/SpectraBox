@@ -513,6 +513,10 @@ function applySettingsToUI(uiSettings) {
       holdTime: { element: 'holdTimeSlider', type: 'number', display: 'holdTimeValue', formatter: (v) => `${v}s` },
       decibelsSpeed: { element: 'decibelsSpeedSlider', type: 'number', display: 'decibelsSpeedValue', formatter: (v) => `${v}ms` },
       rmsWeighting: { element: 'rmsWeightingSelect', type: 'string' }
+    },
+    performance: {
+      refreshRate: { element: 'refreshRateSlider', type: 'number', display: 'refreshRateValue', formatter: (v) => `${v} FPS` },
+      enableVSync: { element: 'enableVSyncToggle', type: 'boolean' }
     }
   };
 

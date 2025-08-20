@@ -57,6 +57,10 @@ class SettingsManager {
         holdTime: { element: 'holdTimeSlider', type: 'number', display: 'holdTimeValue', formatter: (v) => `${v}s` },
         decibelsSpeed: { element: 'decibelsSpeedSlider', type: 'number', display: 'decibelsSpeedValue', formatter: (v) => `${v}ms` },
         rmsWeighting: { element: 'rmsWeightingSelect', type: 'string' }
+      },
+      performance: {
+        refreshRate: { element: 'refreshRateSlider', type: 'number', display: 'refreshRateValue', formatter: (v) => `${v} FPS` },
+        enableVSync: { element: 'enableVSyncToggle', type: 'boolean' }
       }
     };
 
@@ -89,6 +93,10 @@ class SettingsManager {
         holdTime: { type: 'number', min: 0.5, max: 2.0 },
         decibelsSpeed: { type: 'number', min: 10, max: 250 },
         rmsWeighting: { type: 'string', enum: ['Z', 'A', 'C'] }
+      },
+      performance: {
+        refreshRate: { type: 'number', min: 15, max: 60 },
+        enableVSync: { type: 'boolean' }
       }
     };
   }

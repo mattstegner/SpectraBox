@@ -74,6 +74,11 @@ class PreferencesService {
           holdTime: 0.5,
           decibelsSpeed: 150,
           rmsWeighting: 'Z'
+        },
+        // Performance tab settings
+        performance: {
+          refreshRate: 30,  // FPS - optimized for Raspberry Pi (30), desktop can use higher values like 60
+          enableVSync: false
         }
       },
       systemSettings: {
@@ -117,6 +122,10 @@ class PreferencesService {
         holdTime: { type: 'number', min: 0.5, max: 2.0 },
         decibelsSpeed: { type: 'number', min: 10, max: 250 },
         rmsWeighting: { type: 'string', enum: ['Z', 'A', 'C'] }
+      },
+      performance: {
+        refreshRate: { type: 'number', min: 15, max: 60 },
+        enableVSync: { type: 'boolean' }
       }
     };
   }

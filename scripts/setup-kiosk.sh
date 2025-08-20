@@ -90,6 +90,13 @@ chromium-browser \
   --allow-running-insecure-content \
   --disable-features=VizDisplayCompositor \
   --start-fullscreen \
+  --hide-scrollbars \
+  --disable-scroll-bounce \
+  --disable-features=OverscrollHistoryNavigation \
+  --overscroll-history-navigation=0 \
+  --disable-pinch \
+  --disable-smooth-scrolling \
+  --force-device-scale-factor=1 \
   http://localhost:3000
 EOF
 

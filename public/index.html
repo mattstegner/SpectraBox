@@ -147,7 +147,8 @@
         border: 1px solid #555;
         border-radius: 8px;
         padding: 0;
-        width: 380px;
+        width: 700px;
+        min-width: 700px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
         z-index: 1001;
         display: none;
@@ -162,20 +163,22 @@
         display: flex;
         border-bottom: 1px solid #555;
         border-radius: 8px 8px 0 0;
-        overflow: hidden;
+        overflow: visible;
         flex-wrap: nowrap;
       }
 
       .settings-tab {
-        flex: 1;
+        flex: 0 0 auto;
         background-color: #333;
         color: #ccc;
         border: none;
-        padding: 12px 6px;
+        padding: 12px 10px;
         cursor: pointer;
-        font-size: 12px;
+        font-size: 11px;
         border-right: 1px solid #555;
         transition: background-color 0.2s;
+        white-space: nowrap;
+        min-width: fit-content;
       }
 
       .settings-tab:last-child {
@@ -194,6 +197,8 @@
       .settings-content {
         padding: 20px;
         overflow-y: auto;
+        width: 100%;
+        box-sizing: border-box;
         /* Max height will be dynamically set by JavaScript */
       }
 
@@ -229,6 +234,7 @@
       .setting-item input[type="range"] {
         width: 100%;
         background: #333;
+        box-sizing: border-box;
       }
 
       .setting-item select {
@@ -238,6 +244,7 @@
         border: 1px solid #555;
         padding: 5px;
         border-radius: 4px;
+        box-sizing: border-box;
       }
 
       #defaultDeviceIndicator {
@@ -870,21 +877,21 @@
       /* Responsive adjustments for smaller screens */
       @media (max-width: 1200px) {
         .settings-panel {
-          width: 360px;
+          width: 700px !important;
         }
         .settings-tab {
           font-size: 11px;
-          padding: 10px 4px;
+          padding: 10px 8px;
         }
       }
 
       @media (max-width: 800px) {
         .settings-panel {
-          width: 340px;
+          width: 700px !important;
         }
         .settings-tab {
           font-size: 10px;
-          padding: 8px 3px;
+          padding: 8px 6px;
         }
       }
     </style>
@@ -938,13 +945,14 @@
             Spectrogram Drawing
           </button>
           <button class="settings-tab" data-tab="meters">Meters</button>
+          <button class="settings-tab" data-tab="performance">Performance</button>
           <button class="settings-tab" data-tab="network">Network</button>
           <button class="settings-tab" data-tab="server">Server</button>
         </div>
 
-        <div class="settings-content">
+        <div class="settings-content" style="width: 100%; max-width: none; padding: 20px; box-sizing: border-box;">
           <!-- General Tab -->
-          <div class="settings-page active" id="general-page">
+          <div class="settings-page active" id="general-page" style="width: 100%; max-width: none;">
             <div class="setting-item">
               <button id="startBtn">Start</button>
               <button id="stopBtn" disabled>Stop</button>
@@ -952,13 +960,13 @@
 
             <div class="setting-item">
               <label for="audioDeviceSelect">Audio Input Device:</label>
-              <div style="display: flex; gap: 10px; align-items: center">
-                <select id="audioDeviceSelect" style="flex: 1">
+              <div style="display: flex; gap: 10px; align-items: center; width: 100%;">
+                <select id="audioDeviceSelect" style="flex: 1; max-width: none;">
                   <option value="default">Loading devices...</option>
                 </select>
                 <button
                   id="refreshDevicesBtn"
-                  style="padding: 5px 10px; font-size: 12px"
+                  style="padding: 5px 10px; font-size: 12px; flex-shrink: 0;"
                 >
                   Refresh
                 </button>
@@ -979,6 +987,7 @@
                 max="500"
                 step="10"
                 value="20"
+                style="width: 100%; max-width: none;"
               />
             </div>
 
@@ -993,6 +1002,7 @@
                 max="20000"
                 step="100"
                 value="20000"
+                style="width: 100%; max-width: none;"
               />
             </div>
 
@@ -1007,6 +1017,7 @@
                 max="12"
                 step="0.1"
                 value="0"
+                style="width: 100%; max-width: none;"
               />
             </div>
 
@@ -1235,6 +1246,36 @@
                 <option value="A">A-weighting (Human Hearing)</option>
                 <option value="C">C-weighting (Entertainment)</option>
               </select>
+            </div>
+          </div>
+
+          <!-- Performance Tab -->
+          <div class="settings-page" id="performance-page">
+            <div class="setting-item">
+              <label for="refreshRateSlider"
+                >Refresh Rate: <span id="refreshRateValue">30 FPS</span></label
+              >
+              <input
+                type="range"
+                id="refreshRateSlider"
+                min="15"
+                max="60"
+                step="5"
+                value="30"
+              />
+              <div style="font-size: 12px; color: #aaa; margin-top: 5px;">
+                Lower values improve Raspberry Pi performance. 30 FPS is recommended for Pi.
+              </div>
+            </div>
+
+            <div class="setting-item">
+              <label for="enableVSyncToggle">
+                <input type="checkbox" id="enableVSyncToggle" />
+                Enable V-Sync (Smooth Animation)
+              </label>
+              <div style="font-size: 12px; color: #aaa; margin-top: 5px;">
+                Synchronizes with display refresh rate. May increase CPU usage.
+              </div>
             </div>
           </div>
 

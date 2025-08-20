@@ -40,7 +40,14 @@ const config = {
       '--enable-features=HardwareMediaKeyHandling',
       '--no-sandbox', // Required for some Pi configurations
       '--disable-dev-shm-usage', // Overcome limited resource problems
-      '--disable-gpu-sandbox' // GPU sandbox can cause issues on Pi
+      '--disable-gpu-sandbox', // GPU sandbox can cause issues on Pi
+      '--hide-scrollbars', // Hide all scroll bars
+      '--disable-scroll-bounce', // Disable scroll bounce effects
+      '--disable-features=OverscrollHistoryNavigation', // Disable overscroll navigation
+      '--overscroll-history-navigation=0', // Disable overscroll history navigation
+      '--disable-pinch', // Disable pinch zoom which can cause scroll bars
+      '--disable-smooth-scrolling', // Disable smooth scrolling
+      '--force-device-scale-factor=1' // Force scale factor to prevent zoom-related scroll bars
     ]
   },
   delays: {

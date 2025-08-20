@@ -30,7 +30,10 @@ class StereoSpectrumAnalyzer {
         // === FFT (Fast Fourier Transform) SETTINGS ===
         // FFT converts time-domain audio signals into frequency-domain data
         this.fftSize = 4096;                // Number of samples for FFT (must be power of 2)
-        this.bufferLength = this.fftSize / 2; // Output array size (Nyquist frequency limit)
+        this.bufferLength = this.fftSize / 2;
+        
+        // === PERFORMANCE SETTINGS ===
+        this.refreshRate = 30;              // Target FPS - optimized for Raspberry Pi performance
         
         // === CANVAS DRAWING SETUP ===
         // Get canvas element and 2D drawing context for rendering the spectrum
@@ -537,11 +540,32 @@ class StereoSpectrumAnalyzer {
             }
             // If running, the animation loop will pick up the change automatically
         });
+        
+        // === REFRESH RATE SLIDER HANDLER ===
+        // Controls the frame rate for performance optimization
+        const refreshRateSlider = document.getElementById('refreshRateSlider');
+        const refreshRateValue = document.getElementById('refreshRateValue');
+        if (refreshRateSlider && refreshRateValue) {
+            refreshRateSlider.addEventListener('input', (e) => {
+                this.refreshRate = parseInt(e.target.value);
+                refreshRateValue.textContent = `${this.refreshRate} FPS`;
+            });
+        }
+        
+        // === V-SYNC TOGGLE HANDLER ===
+        // Controls whether to use V-Sync (requestAnimationFrame) vs fixed rate (setTimeout)
+        const vSyncToggle = document.getElementById('enableVSyncToggle');
+        if (vSyncToggle) {
+            vSyncToggle.addEventListener('change', (e) => {
+                this.enableVSync = e.target.checked;
+                // Note: V-Sync change takes effect on next animation cycle
+            });
+        }
     }
     
     /**
      * Adjusts the settings panel layout based on available space
-     * Switches between single and double column layouts as needed
+     * Simplified for touchscreen - maintains consistent width and auto-scaling content
      */
     adjustSettingsPanelLayout() {
         const settingsPanel = document.getElementById('settingsPanel');
@@ -559,37 +583,24 @@ class StereoSpectrumAnalyzer {
         const activeSettingsPage = document.querySelector('.settings-page.active');
         if (!activeSettingsPage) return;
         
-        // === ENSURE ALL PAGES ARE PROPERLY RESET ===
-        // Remove two-column class from all pages to prevent bleed-through
+        // === ENSURE CONSISTENT SINGLE-COLUMN LAYOUT ===
+        // Remove two-column class from all pages to prevent layout changes
         const allSettingsPages = document.querySelectorAll('.settings-page');
         allSettingsPages.forEach(page => {
             page.classList.remove('two-column');
         });
         settingsPanel.classList.remove('two-column');
         
-        // Force a layout recalculation
-        settingsPanel.offsetHeight;
+        // === FORCE CONSISTENT PANEL WIDTH ===
+        settingsPanel.style.width = '700px';
+        settingsPanel.style.minWidth = '700px';
+        settingsPanel.style.maxWidth = '700px';
         
         // === MEASURE CONTENT HEIGHT ===
         const settingsContent = settingsPanel.querySelector('.settings-content');
         const tabsHeight = settingsPanel.querySelector('.settings-tabs').offsetHeight;
         const contentHeight = activeSettingsPage.scrollHeight;
         const totalRequiredHeight = tabsHeight + contentHeight + 40; // Add padding
-        
-        // === DETERMINE IF TWO-COLUMN LAYOUT IS NEEDED ===
-        const needsTwoColumns = totalRequiredHeight > maxAvailableHeight;
-        
-        if (needsTwoColumns) {
-            // === APPLY TWO-COLUMN LAYOUT ONLY TO ACTIVE PAGE ===
-            settingsPanel.classList.add('two-column');
-            activeSettingsPage.classList.add('two-column');
-            
-            // === ADJUST PANEL POSITION TO STAY WITHIN CANVAS BOUNDS ===
-            this.adjustPanelPosition(settingsPanel, canvasRect);
-        } else {
-            // === RESET PANEL POSITION FOR SINGLE COLUMN ===
-            settingsPanel.style.left = '10px';
-        }
         
         // === ENSURE PANEL HEIGHT DOESN'T EXCEED AVAILABLE SPACE ===
         const finalPanelHeight = Math.min(totalRequiredHeight, maxAvailableHeight);
@@ -598,6 +609,10 @@ class StereoSpectrumAnalyzer {
         // === ADJUST CONTENT AREA MAX HEIGHT ===
         const contentMaxHeight = finalPanelHeight - tabsHeight - 20; // Leave room for padding
         settingsContent.style.maxHeight = `${contentMaxHeight}px`;
+        
+        // === ENSURE CONTENT USES FULL WIDTH ===
+        settingsContent.style.width = '100%';
+        settingsContent.style.boxSizing = 'border-box';
     }
     
     /**
@@ -1077,7 +1092,7 @@ class StereoSpectrumAnalyzer {
         
         // Cancel any pending animation frame to stop drawing immediately
         if (this.animationId) {
-            cancelAnimationFrame(this.animationId);         // Stop the drawing loop
+            clearTimeout(this.animationId);                 // Stop the drawing loop
         }
         
         // === RELEASE MICROPHONE ACCESS ===
@@ -1139,7 +1154,7 @@ class StereoSpectrumAnalyzer {
     
     /**
      * Main animation loop that continuously updates the display
-     * Uses requestAnimationFrame for smooth 60fps rendering
+     * Uses setTimeout for optimized 30fps rendering (better for Raspberry Pi performance)
      */
     animate() {
         // === CHECK IF WE SHOULD CONTINUE ===
@@ -1151,14 +1166,14 @@ class StereoSpectrumAnalyzer {
         this.draw();
         
         // === SCHEDULE NEXT FRAME ===
-        // requestAnimationFrame calls this function again on the next display refresh
-        // This provides smooth animation at the display's refresh rate (usually 60 Hz)
-        this.animationId = requestAnimationFrame(() => this.animate());
+        // setTimeout calls this function again based on configured refresh rate
+        // This provides good performance while reducing CPU load on Raspberry Pi
+        this.animationId = setTimeout(() => this.animate(), 1000 / this.refreshRate);
     }
     
     /**
      * Draws one complete frame of the spectrum analyzer
-     * This method is called 60 times per second to create real-time visualization
+     * This method is called at the configured refresh rate to create real-time visualization
      */
     draw() {
         // === GET FREQUENCY DOMAIN DATA ===

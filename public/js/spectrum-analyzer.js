@@ -12,6 +12,8 @@ class SpectrumAnalyzer {
     this.canvas = document.getElementById('spectrumCanvas');
     this.canvasContext = this.canvas.getContext('2d');
     this.isRunning = false;
+    this.animationId = null;
+    this.refreshRate = 30; // Target FPS - optimized for Raspberry Pi performance
     this.audioDevices = [];
     this.selectedDevice = null;
     this.preferences = {};
@@ -180,6 +182,27 @@ class SpectrumAnalyzer {
     // Handle window resize
     window.addEventListener('resize', () => this.resizeCanvas());
     this.resizeCanvas();
+    
+    // === REFRESH RATE SLIDER HANDLER ===
+    // Controls the frame rate for performance optimization
+    const refreshRateSlider = document.getElementById('refreshRateSlider');
+    const refreshRateValue = document.getElementById('refreshRateValue');
+    if (refreshRateSlider && refreshRateValue) {
+      refreshRateSlider.addEventListener('input', (e) => {
+        this.refreshRate = parseInt(e.target.value);
+        refreshRateValue.textContent = `${this.refreshRate} FPS`;
+      });
+    }
+    
+    // === V-SYNC TOGGLE HANDLER ===
+    // Controls whether to use V-Sync (requestAnimationFrame) vs fixed rate (setTimeout)
+    const vSyncToggle = document.getElementById('enableVSyncToggle');
+    if (vSyncToggle) {
+      vSyncToggle.addEventListener('change', (e) => {
+        this.enableVSync = e.target.checked;
+        // Note: V-Sync change takes effect on next animation cycle
+      });
+    }
   }
 
   /**
@@ -260,6 +283,12 @@ class SpectrumAnalyzer {
         this.audioContext = null;
       }
       
+      // Stop animation loop
+      if (this.animationId) {
+        clearTimeout(this.animationId);
+        this.animationId = null;
+      }
+      
       // Update UI
       this.isRunning = false;
       this.startButton.disabled = false;
@@ -284,7 +313,7 @@ class SpectrumAnalyzer {
   }
 
   /**
-   * Main drawing loop
+   * Main drawing loop - optimized for 30 FPS for better Raspberry Pi performance
    */
   draw() {
     if (!this.isRunning) return;
@@ -302,8 +331,8 @@ class SpectrumAnalyzer {
     // Update meters (simplified - using frequency data for demonstration)
     this.updateMeters();
     
-    // Continue animation
-    requestAnimationFrame(() => this.draw());
+    // Continue animation at configured refresh rate for optimal Raspberry Pi performance
+    this.animationId = setTimeout(() => this.draw(), 1000 / this.refreshRate);
   }
 
   /**
