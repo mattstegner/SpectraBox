@@ -215,10 +215,10 @@ class SettingsManager {
       return false;
     }
 
-    // Check if we're offline or server is unavailable
-    if (!this.isOnline || !this.serverAvailable) {
+    // Check if local server is unavailable (ignore internet connectivity)
+    if (!this.serverAvailable) {
       this.pendingSettings = settings;
-      this.showSettingsFeedback('Offline - settings will be saved when connection is restored', 'warning');
+      this.showSettingsFeedback('Server unavailable - settings will be saved when server is restored', 'warning');
       this.startOfflineMode();
       return false;
     }
@@ -315,12 +315,13 @@ class SettingsManager {
       
       // Handle different error types
       if (errorType === 'network') {
+        // For network errors, check if this is a local server issue or just internet connectivity
         this.serverAvailable = false;
         this.pendingSettings = settings;
         this.startOfflineMode();
         
         if (retryCount === 0) {
-          this.showSettingsFeedback('Network error - settings will be saved when connection is restored', 'warning');
+          this.showSettingsFeedback('Local server unavailable - settings will be saved when server is restored', 'warning');
         }
         
         this.isSaving = false;
@@ -368,8 +369,8 @@ class SettingsManager {
    */
   async resetSettings() {
     // Check if server is available
-    if (!this.isOnline || !this.serverAvailable) {
-      this.showSettingsFeedback('Cannot reset settings while offline. Please check your connection.', 'error');
+    if (!this.serverAvailable) {
+      this.showSettingsFeedback('Cannot reset settings - server unavailable', 'error');
       return false;
     }
 
@@ -406,7 +407,7 @@ class SettingsManager {
       case 'network':
         this.serverAvailable = false;
         this.startOfflineMode();
-        errorMessage = 'Network error - check your connection and try again';
+        errorMessage = 'Local server unavailable - check your server and try again';
         break;
       case 'timeout':
         errorMessage = 'Reset operation timed out - please try again';
@@ -1348,7 +1349,7 @@ class SettingsManager {
     
     switch (errorType) {
     case 'network':
-      return `Network error${retriesText}. Settings will be saved when connection is restored.`;
+      return `Local server unavailable${retriesText}. Settings will be saved when server is restored.`;
     case 'server':
       return `Server error${retriesText}. Please try again later or contact support.`;
     case 'timeout':

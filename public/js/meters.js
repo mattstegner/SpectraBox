@@ -963,15 +963,17 @@ class LevelMeters {
             
             // === DRAW RIGHT SIDE TICK MARK ===
             // Small horizontal line on the right side of the meter area
+            // Extended to match the new dB text position
             ctx.beginPath();
             ctx.moveTo(this.peakRightMeter + this.peakMeterWidth, y);        // Start at right meter edge
-            ctx.lineTo(this.peakRightMeter + this.peakMeterWidth + 5, y);    // End 5 pixels to the right
+            ctx.lineTo(this.peakRightMeter + this.peakMeterWidth + 10, y);   // Extended to 10 pixels to the right
             ctx.stroke();
             
             // === DRAW dB VALUE LABEL (only for major dB steps) ===
             // Number label on the right side of all meters for selected values
+            // Increased padding from +5 to +15 to prevent cutoff in kiosk mode
             if (dbSteps.includes(dB)) {
-                ctx.fillText(dB.toString(), this.peakRightMeter + this.peakMeterWidth + 5, y);
+                ctx.fillText(dB.toString(), this.peakRightMeter + this.peakMeterWidth + 15, y);
             }
         }
     }

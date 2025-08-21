@@ -929,12 +929,13 @@ class StereoSpectrumAnalyzer {
         this.plotLeft = 82;                              // Reserve space for dB scale (left side)
         
         // Dynamically size the meter area based on actual meter layout needs
-        // 4 meters (30px each) + spacing (20+10+10+10) + right padding = 170px total
-        const meterAreaWidth = Math.max(180, Math.min(200, this.canvasWidth * 0.15));
+        // 4 meters (30px each) + spacing (20+10+10+10) + right padding for dB scale numbers
+        // Added extra padding (25px) to prevent dB scale numbers from being cut off in kiosk mode
+        const meterAreaWidth = Math.max(205, Math.min(225, this.canvasWidth * 0.15));
         this.plotRight = this.canvasWidth - meterAreaWidth;  // Spectrum ends here, meters begin
         
         this.plotTop = 20;                               // Space for meter labels at top
-        this.plotBottom = this.canvasHeight - 60;        // Space for frequency scale at bottom
+        this.plotBottom = this.canvasHeight - 35;        // Reduced space for frequency scale at bottom (was 60px)
         
         // === CALCULATE SPECTRUM PLOT DIMENSIONS ===
         this.plotWidth = this.plotRight - this.plotLeft;    // Width available for spectrum display
