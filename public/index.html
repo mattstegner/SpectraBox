@@ -147,12 +147,13 @@
         border: 1px solid #555;
         border-radius: 8px;
         padding: 0;
-        width: 700px;
-        min-width: 700px;
+        width: 780px; /* Optimized for 800px width screens */
+        min-width: 300px; /* Allow smaller on very small screens */
+        max-width: calc(100vw - 20px); /* Never exceed screen width */
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
         z-index: 1001;
         display: none;
-        /* Max height will be dynamically set by JavaScript based on canvas container */
+        max-height: calc(100vh - 70px); /* Use most of screen height */
       }
 
       .settings-panel.two-column {
@@ -163,8 +164,23 @@
         display: flex;
         border-bottom: 1px solid #555;
         border-radius: 8px 8px 0 0;
-        overflow: visible;
+        overflow-x: auto; /* Allow horizontal scrolling for tabs if needed */
+        overflow-y: visible;
         flex-wrap: nowrap;
+        scrollbar-width: thin;
+      }
+
+      .settings-tabs::-webkit-scrollbar {
+        height: 4px;
+      }
+
+      .settings-tabs::-webkit-scrollbar-track {
+        background: #333;
+      }
+
+      .settings-tabs::-webkit-scrollbar-thumb {
+        background: #555;
+        border-radius: 2px;
       }
 
       .settings-tab {
@@ -172,9 +188,9 @@
         background-color: #333;
         color: #ccc;
         border: none;
-        padding: 12px 10px;
+        padding: 8px 6px; /* Reduced padding for compactness */
         cursor: pointer;
-        font-size: 11px;
+        font-size: 10px; /* Smaller font for more tabs */
         border-right: 1px solid #555;
         transition: background-color 0.2s;
         white-space: nowrap;
@@ -195,11 +211,31 @@
       }
 
       .settings-content {
-        padding: 20px;
+        padding: 12px; /* Reduced padding */
         overflow-y: auto;
+        overflow-x: hidden;
         width: 100%;
         box-sizing: border-box;
-        /* Max height will be dynamically set by JavaScript */
+        max-height: calc(100vh - 140px); /* Ensure scrollable content area */
+        scrollbar-width: thin;
+      }
+
+      .settings-content::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .settings-content::-webkit-scrollbar-track {
+        background: #333;
+        border-radius: 3px;
+      }
+
+      .settings-content::-webkit-scrollbar-thumb {
+        background: #555;
+        border-radius: 3px;
+      }
+
+      .settings-content::-webkit-scrollbar-thumb:hover {
+        background: #666;
       }
 
       .settings-page {
@@ -213,28 +249,30 @@
       .settings-page.active.two-column {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 20px;
+        gap: 15px; /* Reduced gap */
       }
 
       .settings-page.two-column .setting-item {
-        margin-bottom: 15px;
+        margin-bottom: 10px; /* Reduced margin */
       }
 
       .setting-item {
-        margin-bottom: 15px;
+        margin-bottom: 10px; /* Reduced from 15px */
       }
 
       .setting-item label {
         display: block;
-        margin-bottom: 5px;
+        margin-bottom: 3px; /* Reduced from 5px */
         color: #ccc;
-        font-size: 14px;
+        font-size: 12px; /* Smaller font */
+        line-height: 1.2;
       }
 
       .setting-item input[type="range"] {
         width: 100%;
         background: #333;
         box-sizing: border-box;
+        height: 18px; /* Slightly smaller */
       }
 
       .setting-item select {
@@ -242,26 +280,30 @@
         background-color: #333;
         color: #fff;
         border: 1px solid #555;
-        padding: 5px;
+        padding: 3px; /* Reduced padding */
         border-radius: 4px;
         box-sizing: border-box;
+        font-size: 12px; /* Smaller font */
       }
 
       #defaultDeviceIndicator {
-        font-size: 12px;
+        font-size: 10px; /* Smaller font */
         color: #aaa;
-        margin-top: 5px;
+        margin-top: 3px;
         font-style: italic;
+        line-height: 1.2;
       }
 
       .setting-item button {
         background-color: #333;
         color: #fff;
         border: 1px solid #555;
-        padding: 8px 16px;
+        padding: 6px 12px; /* Reduced padding */
         cursor: pointer;
         border-radius: 4px;
-        margin-right: 10px;
+        margin-right: 8px; /* Reduced margin */
+        font-size: 12px; /* Smaller font */
+        margin-bottom: 4px; /* Add some bottom margin for wrapping */
       }
 
       .setting-item button:hover {
@@ -276,8 +318,8 @@
       .toggle-switch {
         position: relative;
         display: inline-block;
-        width: 50px;
-        height: 24px;
+        width: 44px; /* Slightly smaller */
+        height: 20px; /* Smaller height */
       }
 
       .toggle-switch input {
@@ -296,16 +338,16 @@
         bottom: 0;
         background-color: #555;
         transition: 0.4s;
-        border-radius: 24px;
+        border-radius: 20px;
       }
 
       .toggle-slider:before {
         position: absolute;
         content: "";
-        height: 18px;
-        width: 18px;
-        left: 3px;
-        bottom: 3px;
+        height: 14px; /* Smaller */
+        width: 14px; /* Smaller */
+        left: 2px;
+        bottom: 2px;
         background-color: white;
         transition: 0.4s;
         border-radius: 50%;
@@ -316,7 +358,7 @@
       }
 
       .toggle-switch input:checked + .toggle-slider:before {
-        transform: translateX(26px);
+        transform: translateX(24px); /* Adjusted for smaller size */
       }
 
       .toggle-slider:hover {
@@ -412,17 +454,28 @@
         background-color: #aa00ff;
       }
 
-      /* Network Tab Styles */
-      .network-status-display,
-      .server-config-display,
-      .access-info-display {
+      /* Compact info sections */
+      .info-section, .network-status-display, .server-config-display, .access-info-display {
         background: rgba(0, 0, 0, 0.3);
         border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 4px;
-        padding: 12px;
-        margin-top: 8px;
-        font-size: 13px;
+        padding: 8px; /* Reduced padding */
+        margin-top: 6px; /* Reduced margin */
+        margin-bottom: 8px; /* Reduced margin */
+        font-size: 11px; /* Smaller font */
         color: #fff;
+      }
+
+      .info-section h4 {
+        margin: 0 0 6px 0; /* Reduced margin */
+        color: #fff;
+        font-size: 13px; /* Smaller font */
+      }
+
+      .info-section p, .info-section div {
+        margin: 3px 0; /* Reduced margin */
+        font-size: 11px; /* Smaller font */
+        line-height: 1.3;
       }
 
       /* Server Tab Styles */
@@ -438,9 +491,10 @@
         background: rgba(0, 0, 0, 0.3);
         border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 4px;
-        padding: 12px;
-        margin-top: 8px;
-        font-size: 13px;
+        padding: 8px; /* Reduced padding */
+        margin-top: 6px; /* Reduced margin */
+        margin-bottom: 8px; /* Reduced margin */
+        font-size: 11px; /* Smaller font */
         color: #fff;
       }
 
@@ -471,14 +525,14 @@
 
       /* Update Progress Styles */
       .update-progress {
-        margin-top: 10px;
+        margin-top: 8px; /* Reduced margin */
       }
 
       .progress-bar {
         width: 100%;
-        height: 20px;
+        height: 16px; /* Smaller height */
         background-color: rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
+        border-radius: 8px; /* Smaller radius */
         overflow: hidden;
         position: relative;
       }
@@ -486,7 +540,7 @@
       .progress-fill {
         height: 100%;
         background: linear-gradient(90deg, #ffaa00, #ff8800);
-        border-radius: 10px;
+        border-radius: 8px;
         transition: width 0.3s ease;
         position: relative;
       }
@@ -518,8 +572,8 @@
 
       .progress-text {
         text-align: center;
-        margin-top: 5px;
-        font-size: 12px;
+        margin-top: 4px; /* Reduced margin */
+        font-size: 10px; /* Smaller font */
         font-weight: bold;
         color: #ffaa00;
       }
@@ -851,11 +905,21 @@
       .config-item {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 6px;
-        font-size: 12px;
+        align-items: center;
+        margin-bottom: 4px; /* Reduced margin */
+        font-size: 11px; /* Smaller font */
+        line-height: 1.2;
+      }
+
+      .config-item:last-child {
+        margin-bottom: 0;
       }
 
       .config-label {
+        font-weight: bold;
+        opacity: 0.9;
+        flex-shrink: 0;
+        margin-right: 8px;
         color: #ccc;
       }
 
@@ -863,6 +927,9 @@
         color: #fff;
         font-weight: bold;
         font-family: "Courier New", monospace;
+        font-size: 10px;
+        text-align: right;
+        word-break: break-all;
       }
 
       .network-status-loading,
@@ -877,21 +944,45 @@
       /* Responsive adjustments for smaller screens */
       @media (max-width: 1200px) {
         .settings-panel {
-          width: 700px !important;
+          width: min(780px, calc(100vw - 20px)) !important;
         }
         .settings-tab {
-          font-size: 11px;
-          padding: 10px 8px;
+          font-size: 10px;
+          padding: 8px 6px;
         }
       }
 
       @media (max-width: 800px) {
         .settings-panel {
-          width: 700px !important;
+          width: calc(100vw - 20px) !important;
+          left: 10px;
+          right: 10px;
         }
         .settings-tab {
-          font-size: 10px;
-          padding: 8px 6px;
+          font-size: 9px;
+          padding: 6px 4px;
+        }
+        .settings-content {
+          padding: 8px;
+        }
+        .setting-item {
+          margin-bottom: 8px;
+        }
+        .setting-item label {
+          font-size: 11px;
+        }
+      }
+
+      @media (max-height: 600px) {
+        .settings-panel {
+          max-height: calc(100vh - 50px);
+        }
+        .settings-content {
+          max-height: calc(100vh - 100px);
+          padding: 8px;
+        }
+        .setting-item {
+          margin-bottom: 6px;
         }
       }
     </style>

@@ -575,44 +575,67 @@ class StereoSpectrumAnalyzer {
             return; // Panel not visible, nothing to adjust
         }
         
-        // === CALCULATE AVAILABLE HEIGHT ===
-        const canvasRect = canvasContainer.getBoundingClientRect();
-        const maxAvailableHeight = canvasRect.height - 80; // Leave room for panel top offset and padding
+        // === CALCULATE AVAILABLE HEIGHT FOR SMALL SCREENS ===
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+        
+        // For small screens (like 800x480), use most of the available height
+        let maxAvailableHeight;
+        if (viewportHeight <= 600) {
+            maxAvailableHeight = viewportHeight - 50; // Very tight on small screens
+        } else if (viewportHeight <= 768) {
+            maxAvailableHeight = viewportHeight - 70; // Moderate spacing
+        } else {
+            const canvasRect = canvasContainer.getBoundingClientRect();
+            maxAvailableHeight = canvasRect.height - 80; // Original logic for larger screens
+        }
+        
+        // === ADJUST PANEL WIDTH FOR SMALL SCREENS ===
+        if (viewportWidth <= 800) {
+            settingsPanel.style.width = `${Math.min(viewportWidth - 20, 780)}px`;
+            settingsPanel.style.minWidth = '300px';
+            settingsPanel.style.maxWidth = `${viewportWidth - 20}px`;
+        } else {
+            settingsPanel.style.width = '780px';
+            settingsPanel.style.minWidth = '780px';
+            settingsPanel.style.maxWidth = '780px';
+        }
         
         // === GET ACTIVE SETTINGS PAGE ===
         const activeSettingsPage = document.querySelector('.settings-page.active');
         if (!activeSettingsPage) return;
         
-        // === ENSURE CONSISTENT SINGLE-COLUMN LAYOUT ===
-        // Remove two-column class from all pages to prevent layout changes
+        // === ENSURE CONSISTENT SINGLE-COLUMN LAYOUT ON SMALL SCREENS ===
         const allSettingsPages = document.querySelectorAll('.settings-page');
         allSettingsPages.forEach(page => {
-            page.classList.remove('two-column');
+            if (viewportWidth <= 800) {
+                page.classList.remove('two-column');
+            }
         });
-        settingsPanel.classList.remove('two-column');
         
-        // === FORCE CONSISTENT PANEL WIDTH ===
-        settingsPanel.style.width = '700px';
-        settingsPanel.style.minWidth = '700px';
-        settingsPanel.style.maxWidth = '700px';
+        if (viewportWidth <= 800) {
+            settingsPanel.classList.remove('two-column');
+        }
         
-        // === MEASURE CONTENT HEIGHT ===
-        const settingsContent = settingsPanel.querySelector('.settings-content');
-        const tabsHeight = settingsPanel.querySelector('.settings-tabs').offsetHeight;
-        const contentHeight = activeSettingsPage.scrollHeight;
-        const totalRequiredHeight = tabsHeight + contentHeight + 40; // Add padding
-        
-        // === ENSURE PANEL HEIGHT DOESN'T EXCEED AVAILABLE SPACE ===
-        const finalPanelHeight = Math.min(totalRequiredHeight, maxAvailableHeight);
-        settingsPanel.style.maxHeight = `${finalPanelHeight}px`;
+        // === SET PANEL HEIGHT ===
+        settingsPanel.style.maxHeight = `${maxAvailableHeight}px`;
         
         // === ADJUST CONTENT AREA MAX HEIGHT ===
-        const contentMaxHeight = finalPanelHeight - tabsHeight - 20; // Leave room for padding
+        const settingsContent = settingsPanel.querySelector('.settings-content');
+        const tabsHeight = settingsPanel.querySelector('.settings-tabs').offsetHeight;
+        const contentMaxHeight = maxAvailableHeight - tabsHeight - 10; // Minimal padding
         settingsContent.style.maxHeight = `${contentMaxHeight}px`;
+        
+        // === ENSURE SCROLLING IS ENABLED ===
+        settingsContent.style.overflowY = 'auto';
+        settingsContent.style.overflowX = 'hidden';
         
         // === ENSURE CONTENT USES FULL WIDTH ===
         settingsContent.style.width = '100%';
         settingsContent.style.boxSizing = 'border-box';
+        
+        // === LOG FOR DEBUGGING ===
+        console.log(`Settings panel adjusted: ${viewportWidth}x${viewportHeight}, panel height: ${maxAvailableHeight}px, content height: ${contentMaxHeight}px`);
     }
     
     /**
