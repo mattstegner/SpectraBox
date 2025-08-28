@@ -117,3 +117,8 @@ ssl/
 *.pem
 *.key
 *.crt
+
+# Testing frameworks
+.kiro/
+.playwright/
+.playwright-mcp/
