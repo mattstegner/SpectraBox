@@ -48,7 +48,8 @@ class PreferencesService {
           minFrequency: 20,
           maxFrequency: 20000,
           inputGain: 0.0,
-          holdMode: 'latch'
+          holdMode: 'latch',
+          averageTime: 10
         },
         // Spectrogram Interface tab settings
         spectrogramInterface: {
@@ -99,7 +100,8 @@ class PreferencesService {
         minFrequency: { type: 'number', min: 20, max: 500 },
         maxFrequency: { type: 'number', min: 6000, max: 20000 },
         inputGain: { type: 'number', min: -30, max: 12 },
-        holdMode: { type: 'string', enum: ['latch', 'temporary'] }
+        holdMode: { type: 'string', enum: ['latch', 'average'] },
+        averageTime: { type: 'number', min: 1, max: 15 }
       },
       spectrogramInterface: {
         clickInfoSize: { type: 'string', enum: ['small', 'large'] },

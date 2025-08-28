@@ -34,7 +34,8 @@ class SettingsManager {
         minFrequency: { element: 'minFreqSlider', type: 'number', display: 'minFreqValue', formatter: (v) => `${v} Hz` },
         maxFrequency: { element: 'maxFreqSlider', type: 'number', display: 'maxFreqValue', formatter: (v) => `${(v/1000).toFixed(1)} kHz` },
         inputGain: { element: 'gainSlider', type: 'number', display: 'gainValue', formatter: (v) => `${v} dB` },
-        holdMode: { element: 'holdModeSelect', type: 'string' }
+        holdMode: { element: 'holdModeSelect', type: 'string' },
+        averageTime: { element: 'averageTimeSlider', type: 'number', display: 'averageTimeValue', formatter: (v) => `${v}s` }
       },
       spectrogramInterface: {
         clickInfoSize: { element: 'clickInfoSizeSelect', type: 'string' },
@@ -70,7 +71,8 @@ class SettingsManager {
         minFrequency: { type: 'number', min: 20, max: 500 },
         maxFrequency: { type: 'number', min: 6000, max: 20000 },
         inputGain: { type: 'number', min: -30, max: 12 },
-        holdMode: { type: 'string', enum: ['latch', 'temporary'] }
+        holdMode: { type: 'string', enum: ['latch', 'average'] },
+        averageTime: { type: 'number', min: 1, max: 15 }
       },
       spectrogramInterface: {
         clickInfoSize: { type: 'string', enum: ['small', 'large'] },
@@ -682,6 +684,26 @@ class SettingsManager {
     }
 
     console.log('Settings applied to UI controls');
+    
+    // Update hold button text to reflect current mode after settings are applied
+    this.updateHoldButtonText();
+  }
+
+  /**
+   * Updates the hold button text based on the current hold mode setting
+   */
+  updateHoldButtonText() {
+    const holdBtn = document.getElementById('holdBtn');
+    const holdModeSelect = document.getElementById('holdModeSelect');
+    
+    if (!holdBtn || !holdModeSelect) return;
+    
+    // Update text based on current hold button mode
+    if (holdModeSelect.value === 'average') {
+      holdBtn.textContent = 'Aver';
+    } else {
+      holdBtn.textContent = 'Peak';
+    }
   }
 
   /**

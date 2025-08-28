@@ -94,9 +94,17 @@ class StereoSpectrumAnalyzer {
         // === HOLD MODE STATE ===
         // Controls the visual hold mode for spectrogram amplitude tracking
         this.holdModeEnabled = false;       // Whether hold mode is currently active
-        this.heldAmplitudesLeft = null;     // Array to store held maximum amplitudes for left channel
-        this.heldAmplitudesRight = null;    // Array to store held maximum amplitudes for right channel
-        this.holdButtonMode = 'latch';      // Hold button behavior: 'latch' (toggle) or 'temporary' (while pressed)
+        this.heldAmplitudesLeft = null;     // Array to store held values for left channel
+        this.heldAmplitudesRight = null;    // Array to store held values for right channel
+        this.holdButtonMode = 'latch';      // Hold button behavior: 'latch' (toggle) or 'average' (time-average)
+        
+        // === AVERAGE MODE STATE ===
+        // Additional state needed for average mode calculations
+        this.averageAmplitudesLeft = null;   // Array to store running averages for left channel (linear scale)
+        this.averageAmplitudesRight = null;  // Array to store running averages for right channel (linear scale)
+        this.averageTimeSeconds = 10;           // User-configurable averaging time in seconds (1-15s)
+        this.averageSmoothingFactor = this.calculateSmoothingFactor(this.averageTimeSeconds);  // EMA smoothing factor calculated from time
+        this.averageInitialized = false;     // Track if average arrays have been seeded with first values
         
         // === FREEZE MODE STATE ===
         // Controls the freeze functionality for capturing amplitude lines
@@ -519,6 +527,16 @@ class StereoSpectrumAnalyzer {
             
             // Re-setup the hold button handlers for the new mode
             this.setupHoldButtonHandlers();
+            
+            // Update button text to reflect the new mode
+            this.updateHoldButtonText();
+        });
+        
+        // === AVERAGE TIME SLIDER HANDLER ===
+        // Controls the averaging time window for average hold mode (1-15 seconds)
+        document.getElementById('averageTimeSlider').addEventListener('input', (e) => {
+            const averageTime = parseInt(e.target.value);                       // Get slider value in seconds
+            this.setAverageTime(averageTime);                                   // Update averaging time and smoothing factor
         });
         
         // === SPECTROGRAM RANGE SLIDER HANDLER ===
@@ -715,6 +733,21 @@ class StereoSpectrumAnalyzer {
     }
     
     /**
+     * Updates the hold button text based on the current hold mode setting
+     */
+    updateHoldButtonText() {
+        const holdBtn = document.getElementById('holdBtn');
+        if (!holdBtn) return;
+        
+        // Update text based on current hold button mode
+        if (this.holdButtonMode === 'average') {
+            holdBtn.textContent = 'Aver';
+        } else {
+            holdBtn.textContent = 'Peak';
+        }
+    }
+    
+    /**
      * Sets up hold button event handlers based on the current hold button mode
      * Supports both latch (toggle) and temporary (while pressed) modes
      */
@@ -725,32 +758,11 @@ class StereoSpectrumAnalyzer {
         const newHoldBtn = holdBtn.cloneNode(true);
         holdBtn.parentNode.replaceChild(newHoldBtn, holdBtn);
         
-        if (this.holdButtonMode === 'latch') {
-            // === LATCH MODE: Click to toggle on/off ===
-            newHoldBtn.addEventListener('mousedown', () => this.toggleHoldMode());
-        } else if (this.holdButtonMode === 'temporary') {
-            // === TEMPORARY MODE: Active only while mouse is pressed ===
-            newHoldBtn.addEventListener('mousedown', (e) => {
-                e.preventDefault(); // Prevent default behavior
-                this.activateHoldMode();
-            });
-            
-            newHoldBtn.addEventListener('mouseup', () => {
-                this.deactivateHoldMode();
-            });
-            
-            newHoldBtn.addEventListener('mouseleave', () => {
-                // Deactivate if mouse leaves button while pressed
-                this.deactivateHoldMode();
-            });
-            
-            // Handle case where mouse is released outside the button
-            document.addEventListener('mouseup', () => {
-                if (this.holdButtonMode === 'temporary' && this.holdModeEnabled) {
-                    this.deactivateHoldMode();
-                }
-            });
-        }
+        // Update button text for the current mode
+        this.updateHoldButtonText();
+        
+        // Both latch and average modes use click to toggle
+        newHoldBtn.addEventListener('mousedown', () => this.toggleHoldMode());
     }
     
     /**
@@ -773,8 +785,8 @@ class StereoSpectrumAnalyzer {
         
         this.holdModeEnabled = true;
         
-        // Initialize held amplitude arrays
-        this.initializeHeldAmplitudes();
+        // Initialize hold session based on current mode
+        this.initializeHoldSession();
         
         // Update button appearance to show active state (green background)
         const holdBtn = document.getElementById('holdBtn');
@@ -791,8 +803,8 @@ class StereoSpectrumAnalyzer {
         
         this.holdModeEnabled = false;
         
-        // Clear held amplitude arrays
-        this.clearHeldAmplitudes();
+        // Clear hold session data
+        this.clearHoldSession();
         
         // Update button appearance to show inactive state (gray background)
         const holdBtn = document.getElementById('holdBtn');
@@ -802,26 +814,45 @@ class StereoSpectrumAnalyzer {
     }
     
     /**
-     * Initializes the held amplitude arrays with minimum values
+     * Initializes hold session based on current mode
      * Called when entering hold mode
      */
-    initializeHeldAmplitudes() {
-        // Initialize arrays with minimum dB values for all frequency bins
-        this.heldAmplitudesLeft = new Float32Array(this.bufferLength);
-        this.heldAmplitudesRight = new Float32Array(this.bufferLength);
-        
-        // Fill with minimum displayable amplitude (same as Web Audio API minimum)
-        this.heldAmplitudesLeft.fill(-Infinity);
-        this.heldAmplitudesRight.fill(-Infinity);
+    initializeHoldSession() {
+        if (this.holdButtonMode === 'latch') {
+            // Initialize arrays with minimum dB values for peak tracking
+            this.heldAmplitudesLeft = new Float32Array(this.bufferLength);
+            this.heldAmplitudesRight = new Float32Array(this.bufferLength);
+            this.heldAmplitudesLeft.fill(-Infinity);
+            this.heldAmplitudesRight.fill(-Infinity);
+        } else if (this.holdButtonMode === 'average') {
+            // Initialize arrays for averaging (linear scale for proper averaging)
+            this.averageAmplitudesLeft = new Float32Array(this.bufferLength);
+            this.averageAmplitudesRight = new Float32Array(this.bufferLength);
+            this.averageAmplitudesLeft.fill(0);
+            this.averageAmplitudesRight.fill(0);
+            this.averageInitialized = false;  // Will be seeded with first real audio data
+            
+            // Initialize display arrays for computed averages (dB scale)
+            this.heldAmplitudesLeft = new Float32Array(this.bufferLength);
+            this.heldAmplitudesRight = new Float32Array(this.bufferLength);
+            this.heldAmplitudesLeft.fill(-Infinity);
+            this.heldAmplitudesRight.fill(-Infinity);
+        }
     }
     
     /**
-     * Clears the held amplitude arrays
+     * Clears hold session data
      * Called when exiting hold mode
      */
-    clearHeldAmplitudes() {
+    clearHoldSession() {
         this.heldAmplitudesLeft = null;
         this.heldAmplitudesRight = null;
+        
+        if (this.holdButtonMode === 'average') {
+            this.averageAmplitudesLeft = null;
+            this.averageAmplitudesRight = null;
+            this.averageInitialized = false;
+        }
     }
     
     /**
@@ -836,16 +867,59 @@ class StereoSpectrumAnalyzer {
             return; // Hold mode not active or arrays not initialized
         }
         
-        // Update held values for each frequency bin
-        for (let i = 0; i < dataLeft.length; i++) {
-            // Update left channel held amplitude if current value is higher
-            if (dataLeft[i] > this.heldAmplitudesLeft[i]) {
-                this.heldAmplitudesLeft[i] = dataLeft[i];
+        if (this.holdButtonMode === 'latch') {
+            // === LATCH MODE: Track peak values ===
+            for (let i = 0; i < dataLeft.length; i++) {
+                // Update left channel held amplitude if current value is higher
+                if (dataLeft[i] > this.heldAmplitudesLeft[i]) {
+                    this.heldAmplitudesLeft[i] = dataLeft[i];
+                }
+                
+                // Update right channel held amplitude if current value is higher
+                if (dataRight[i] > this.heldAmplitudesRight[i]) {
+                    this.heldAmplitudesRight[i] = dataRight[i];
+                }
+            }
+        } else if (this.holdButtonMode === 'average') {
+            // === AVERAGE MODE: Exponential Moving Average for responsive outlier handling ===
+            // EMA formula: newAvg = α * newValue + (1-α) * oldAvg
+            // where α (smoothing factor) controls responsiveness to new data
+            const alpha = this.averageSmoothingFactor;
+            
+            for (let i = 0; i < dataLeft.length; i++) {
+                // Convert dB to linear scale for proper averaging
+                // Handle -Infinity case by treating as zero power
+                const linearLeft = dataLeft[i] === -Infinity ? 0 : Math.pow(10, dataLeft[i] / 10);
+                const linearRight = dataRight[i] === -Infinity ? 0 : Math.pow(10, dataRight[i] / 10);
+                
+                if (!this.averageInitialized) {
+                    // First frame: seed the averages with initial values
+                    this.averageAmplitudesLeft[i] = linearLeft;
+                    this.averageAmplitudesRight[i] = linearRight;
+                } else {
+                    // Subsequent frames: apply exponential moving average
+                    // This gives more weight to recent data, allowing outliers to fade naturally
+                    this.averageAmplitudesLeft[i] = alpha * linearLeft + (1 - alpha) * this.averageAmplitudesLeft[i];
+                    this.averageAmplitudesRight[i] = alpha * linearRight + (1 - alpha) * this.averageAmplitudesRight[i];
+                }
+                
+                // Convert back to dB for display
+                if (this.averageAmplitudesLeft[i] > 0) {
+                    this.heldAmplitudesLeft[i] = 10 * Math.log10(this.averageAmplitudesLeft[i]);
+                } else {
+                    this.heldAmplitudesLeft[i] = -Infinity;
+                }
+                
+                if (this.averageAmplitudesRight[i] > 0) {
+                    this.heldAmplitudesRight[i] = 10 * Math.log10(this.averageAmplitudesRight[i]);
+                } else {
+                    this.heldAmplitudesRight[i] = -Infinity;
+                }
             }
             
-            // Update right channel held amplitude if current value is higher
-            if (dataRight[i] > this.heldAmplitudesRight[i]) {
-                this.heldAmplitudesRight[i] = dataRight[i];
+            // Mark averages as initialized after first frame
+            if (!this.averageInitialized) {
+                this.averageInitialized = true;
             }
         }
     }
@@ -2496,6 +2570,36 @@ class StereoSpectrumAnalyzer {
         }
         
         this.ctx.stroke();
+    }
+    
+    /**
+     * Calculate the smoothing factor for exponential moving average based on averaging time
+     * @param {number} timeSeconds - Desired averaging time in seconds (1-15)
+     * @returns {number} Alpha smoothing factor (0.0-1.0)
+     */
+    calculateSmoothingFactor(timeSeconds) {
+        // Assume 30 FPS for frame rate calculation
+        const frameRate = 30;
+        const timeConstantFrames = timeSeconds * frameRate;
+        
+        // For exponential moving average, alpha = 1 / time_constant
+        // This gives a time constant where old data decays to ~37% after the specified time
+        return 1.0 / timeConstantFrames;
+    }
+    
+    /**
+     * Update the averaging time and recalculate the smoothing factor
+     * @param {number} timeSeconds - New averaging time in seconds (1-15)
+     */
+    setAverageTime(timeSeconds) {
+        this.averageTimeSeconds = Math.max(1, Math.min(15, timeSeconds));
+        this.averageSmoothingFactor = this.calculateSmoothingFactor(this.averageTimeSeconds);
+        
+        // If we're currently in average mode with hold active, restart the session
+        // to apply the new smoothing factor immediately
+        if (this.holdModeEnabled && this.holdButtonMode === 'average') {
+            this.initializeHoldSession();
+        }
     }
 }
 

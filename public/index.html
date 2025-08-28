@@ -1116,12 +1116,27 @@
               <label for="holdModeSelect">Hold Button Mode:</label>
               <select id="holdModeSelect">
                 <option value="latch" selected>
-                  Latch (Click to Toggle On/Off)
+                  Peak (Max Amplitude Hold)
                 </option>
-                <option value="temporary">
-                  Temporary (Hold While Pressed)
+                <option value="average">
+                  Average (Time-Average Hold)
                 </option>
               </select>
+            </div>
+
+            <div class="setting-item">
+              <label for="averageTimeSlider">
+                Average Time: <span id="averageTimeValue">10s</span>
+              </label>
+              <input
+                type="range"
+                id="averageTimeSlider"
+                min="1"
+                max="15"
+                step="1"
+                value="10"
+                style="width: 100%; max-width: none;"
+              />
             </div>
 
             <div class="setting-item">
