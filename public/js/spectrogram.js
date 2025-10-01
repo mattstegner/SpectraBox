@@ -32,6 +32,14 @@ class StereoSpectrumAnalyzer {
         this.fftSize = 4096;                // Number of samples for FFT (must be power of 2)
         this.bufferLength = this.fftSize / 2;
         
+        // === METER FFT SIZE SETTINGS ===
+        // FFT size for RMS meter calculations (independent of spectrogram FFT)
+        // Larger values = longer integration time for more accurate RMS measurements
+        // At 48kHz: 8192 samples = ~171ms integration time (industry standard is ~300ms)
+        // At 44.1kHz: 8192 samples = ~186ms integration time
+        // This can be adjusted via: analyzer.meterFFTSize = 16384 (for ~341ms at 48kHz)
+        this.meterFFTSize = 8192;           // Fixed size for RMS meter integration window
+        
         // === PERFORMANCE SETTINGS ===
         this.refreshRate = 30;              // Target FPS - optimized for Raspberry Pi performance
         
@@ -1118,10 +1126,14 @@ class StereoSpectrumAnalyzer {
             this.meterAnalyserRight = this.audioContext.createAnalyser();
             
             // === CONFIGURE METER ANALYZER SETTINGS ===
-            // Fixed FFT size optimized for level meter calculations (independent of spectrogram)
-            const meterFFTSize = 2048;                                   // Optimal size for meter accuracy vs performance
-            this.meterAnalyserLeft.fftSize = meterFFTSize;               // Fixed size regardless of spectrogram FFT
-            this.meterAnalyserRight.fftSize = meterFFTSize;              
+            // FFT size optimized for RMS meter integration time (independent of spectrogram)
+            // Using 8192 samples provides proper RMS integration window:
+            // - At 48kHz: 8192/48000 = 171ms integration time
+            // - At 44.1kHz: 8192/44100 = 186ms integration time
+            // This is closer to the industry standard ~300ms for RMS meters
+            // Combined with smoothing algorithms, this provides accurate RMS measurements
+            this.meterAnalyserLeft.fftSize = this.meterFFTSize;          // Use configurable meter FFT size
+            this.meterAnalyserRight.fftSize = this.meterFFTSize;         
             this.meterAnalyserLeft.smoothingTimeConstant = 0.3;          // Faster response for meters
             this.meterAnalyserRight.smoothingTimeConstant = 0.3;             
             
@@ -1307,10 +1319,10 @@ class StereoSpectrumAnalyzer {
         // === GET TIME DOMAIN DATA FOR LEVEL METERS ===
         // Time domain data shows the raw audio waveform (amplitude over time)
         // We use this to calculate peak and RMS levels for the level meters
-        // Use dedicated meter analyzers with fixed FFT size for optimal performance
-        const meterFFTSize = 2048;                                 // Fixed FFT size for meter analyzers
-        const timeDataLeft = new Float32Array(meterFFTSize);       // Array for left channel waveform
-        const timeDataRight = new Float32Array(meterFFTSize);      // Array for right channel waveform
+        // Use dedicated meter analyzers with proper integration window size
+        // Using 8192 samples (configurable) for accurate RMS integration time (~171ms at 48kHz)
+        const timeDataLeft = new Float32Array(this.meterFFTSize);       // Array for left channel waveform
+        const timeDataRight = new Float32Array(this.meterFFTSize);      // Array for right channel waveform
         
         // Get the current time domain data from dedicated meter analyzers
         this.meterAnalyserLeft.getFloatTimeDomainData(timeDataLeft);    // Fill array with left channel waveform
@@ -2612,6 +2624,49 @@ class StereoSpectrumAnalyzer {
         // to apply the new smoothing factor immediately
         if (this.holdModeEnabled && this.holdButtonMode === 'average') {
             this.initializeHoldSession();
+        }
+    }
+    
+    /**
+     * Set the meter FFT size for RMS integration window
+     * @param {number} fftSize - FFT size for meter analyzers (must be power of 2)
+     * 
+     * This controls the integration time window for RMS measurements:
+     * - 2048 samples: ~43ms at 48kHz (too short, makes meters too responsive)
+     * - 4096 samples: ~85ms at 48kHz (still short)
+     * - 8192 samples: ~171ms at 48kHz (better, default)
+     * - 16384 samples: ~341ms at 48kHz (industry standard ~300ms)
+     * 
+     * Examples:
+     *   analyzer.setMeterFFTSize(16384);  // Use industry standard 300ms integration
+     *   analyzer.setMeterFFTSize(8192);   // Use default ~170ms integration
+     * 
+     * Note: This will restart audio if currently running to apply the change.
+     */
+    setMeterFFTSize(fftSize) {
+        // Validate that fftSize is a power of 2 and within reasonable range
+        const validSizes = [2048, 4096, 8192, 16384, 32768];
+        if (!validSizes.includes(fftSize)) {
+            console.error(`Invalid meter FFT size: ${fftSize}. Must be one of: ${validSizes.join(', ')}`);
+            return;
+        }
+        
+        // Store the new FFT size
+        this.meterFFTSize = fftSize;
+        
+        // If audio is currently running, need to restart to apply the change
+        if (this.isRunning && this.meterAnalyserLeft && this.meterAnalyserRight) {
+            this.meterAnalyserLeft.fftSize = fftSize;
+            this.meterAnalyserRight.fftSize = fftSize;
+            
+            // Calculate and display integration time at current sample rate
+            if (this.audioContext) {
+                const sampleRate = this.audioContext.sampleRate;
+                const integrationTimeMs = (fftSize / sampleRate * 1000).toFixed(1);
+                console.log(`Meter FFT size updated to ${fftSize} (${integrationTimeMs}ms integration time at ${sampleRate}Hz)`);
+            }
+        } else {
+            console.log(`Meter FFT size set to ${fftSize}. Will be applied when audio starts.`);
         }
     }
 }
