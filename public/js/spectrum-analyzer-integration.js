@@ -79,23 +79,33 @@ function checkServerHealth() {
 /**
  * Load and populate the audio device selector
  */
-function loadAudioDevices() {
+async function loadAudioDevices() {
   const deviceSelect = document.getElementById('audioDeviceSelect');
   const defaultIndicator = document.getElementById('defaultDeviceIndicator');
     
   // Show loading state
   deviceSelect.innerHTML = '<option value="">Loading devices...</option>';
   defaultIndicator.textContent = 'Loading device information...';
+  
+  try {
+    // Request permission first so we can get device labels
+    // Without permission, browser only shows generic labels like "Microphone 1"
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Stop the stream immediately - we just needed permission
+      stream.getTracks().forEach(track => track.stop());
+    } catch (permError) {
+      console.warn('Microphone permission not granted yet, device labels may be limited');
+    }
     
-  fetchAudioDevices()
-    .then(devices => {
-      populateDeviceSelector(devices);
-    })
-    .catch(error => {
-      console.error('Failed to load audio devices:', error);
-      deviceSelect.innerHTML = '<option value="default">Default Device (Error loading devices)</option>';
-      defaultIndicator.textContent = 'Error loading device information';
-    });
+    // Now enumerate devices (will have proper labels if permission was granted)
+    const devices = await fetchAudioDevices();
+    populateDeviceSelector(devices);
+  } catch (error) {
+    console.error('Failed to load audio devices:', error);
+    deviceSelect.innerHTML = '<option value="default">Default Device (Error loading devices)</option>';
+    defaultIndicator.textContent = 'Error loading device information';
+  }
 }
 
 /**
@@ -116,17 +126,19 @@ function populateDeviceSelector(devices) {
   deviceSelect.appendChild(defaultOption);
     
   // Add each device as an option
-  devices.forEach(device => {
+  devices.forEach((device, index) => {
     const option = document.createElement('option');
     option.value = device.deviceId || device.id;
     option.textContent = device.label || device.name || `Device ${device.deviceId}`;
         
     // Mark default device in the option text
-    if (device.isDefault) {
+    if (device.isDefault || index === 0) {
       option.textContent += ' (Default)';
     }
         
     deviceSelect.appendChild(option);
+    
+    console.log(`Device ${index}: ${option.textContent} - ID: ${option.value}`);
   });
     
   // Update default device indicator
@@ -144,40 +156,69 @@ function populateDeviceSelector(devices) {
  * Handle device selection change
  * @param {Event} event - Change event from the device selector
  */
-function handleDeviceChange(event) {
+async function handleDeviceChange(event) {
   const selectedDeviceId = event.target.value;
   console.log('Selected audio device:', selectedDeviceId);
     
   // Store the selected device for use when starting the analyzer
   window.selectedAudioDeviceId = selectedDeviceId;
     
-  // If the analyzer is currently running, we might want to restart it with the new device
-  // This would require modifications to the spectrum analyzer code
+  // If the analyzer is currently running, restart it with the new device
   if (window.analyzer && window.analyzer.isRunning) {
-    console.log('Note: Device change will take effect when analyzer is restarted');
-    // TODO: Implement device switching for running analyzer
+    console.log('Restarting analyzer with new device...');
+    
+    try {
+      // Stop the current analyzer
+      await window.analyzer.stop();
+      
+      // Wait a moment for cleanup
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Start with the new device
+      await window.analyzer.start();
+      
+      console.log('Analyzer restarted successfully with new device');
+    } catch (error) {
+      console.error('Error switching audio device:', error);
+      alert('Failed to switch audio device. Please try stopping and starting manually.');
+    }
   }
 }
 
 /**
- * Fetch available audio devices from the server
+ * Fetch available audio devices using browser's native API
+ * This ensures device IDs match what getUserMedia expects
  */
-function fetchAudioDevices() {
-  return fetch('/api/audio-devices')
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('Failed to fetch audio devices');
-      }
-      return response.json();
-    })
-    .then(data => {
-      console.log('Available audio devices:', data);
-      return data.devices || [];
-    })
-    .catch(error => {
-      console.error('Error fetching audio devices:', error);
+async function fetchAudioDevices() {
+  try {
+    // Use the browser's native device enumeration
+    // This gives us the actual device IDs that getUserMedia can use
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      console.warn('enumerateDevices() not supported.');
       return [];
-    });
+    }
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    
+    // Filter for audio input devices only
+    const audioInputs = devices
+      .filter(device => device.kind === 'audioinput')
+      .map((device, index) => ({
+        deviceId: device.deviceId,
+        id: device.deviceId,
+        label: device.label || `Microphone ${index + 1}`,
+        name: device.label || `Microphone ${index + 1}`,
+        kind: device.kind,
+        isDefault: index === 0, // First device is typically the default
+        type: 'input'
+      }));
+    
+    console.log('Available audio input devices:', audioInputs);
+    return audioInputs;
+  } catch (error) {
+    console.error('Error enumerating audio devices:', error);
+    return [];
+  }
 }
 
 /**

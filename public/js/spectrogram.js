@@ -63,9 +63,11 @@ class StereoSpectrumAnalyzer {
         // Now working directly with dB values from getFloatFrequencyData()
         this.overlapToleranceDB = 1.0;      // Default tolerance in dB
         
-        // === AMPLITUDE SCALING SETTING ===
-        // Controls how tall the spectrum lines appear (0.5 = 50%, 1.0 = 100% height)
-        this.amplitudeScale = 1.0;          // Default to 100% scaling
+        // === AMPLITUDE SCALING SETTING (DEPRECATED) ===
+        // NOTE: No longer used for dB calculations to ensure accurate amplitude display
+        // The spectrogram now uses fixed dB-per-pixel scaling (like PAM FFT plugin)
+        // This ensures signals appear at their correct dB positions on the vertical ruler
+        this.amplitudeScale = 1.0;          // Kept for compatibility but not applied to dB calculations
         
         // === AMPLITUDE CALIBRATION OFFSET ===
         // Compensates for Web Audio API's getFloatFrequencyData() offset from true dBFS
@@ -1049,18 +1051,28 @@ class StereoSpectrumAnalyzer {
     async start() {
         try {
             // === NOTIFY USER OF MICROPHONE REQUEST ===
-            this.updateStatus('Requesting microphone access...');
+            this.updateStatus('Requesting audio device access...');
             
-            // === REQUEST MICROPHONE ACCESS (without specifying channel count) ===
-            // First request audio to detect what's available
-            this.mediaStream = await navigator.mediaDevices.getUserMedia({
+            // === REQUEST AUDIO ACCESS (using selected device if available) ===
+            // Use the device selected in the dropdown, or default if none selected
+            const audioConstraints = {
                 audio: {
                     sampleRate: 44100,             // CD-quality sample rate (44.1 kHz)
                     echoCancellation: false,       // Disable processing - we want raw audio
                     noiseSuppression: false,       // Disable noise reduction - we want everything
                     autoGainControl: false         // Disable automatic volume adjustment
                 }
-            });
+            };
+            
+            // Add device ID if a specific device was selected
+            if (window.selectedAudioDeviceId && window.selectedAudioDeviceId !== 'default') {
+                audioConstraints.audio.deviceId = { exact: window.selectedAudioDeviceId };
+                console.log('Using selected audio device:', window.selectedAudioDeviceId);
+            } else {
+                console.log('Using default audio device');
+            }
+            
+            this.mediaStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
             
             // === DETECT INPUT CHANNEL COUNT ===
             let inputChannelCount = 2; // Default to stereo
@@ -1421,9 +1433,10 @@ class StereoSpectrumAnalyzer {
             const x = this.plotLeft + (Math.log10(frequency / this.minFreq) / Math.log10(this.maxFreq / this.minFreq)) * this.plotWidth;
             // Convert dB value to pixel position (clamp to display range)
             // Apply calibration offset to correct for Web Audio API's internal reference level
+            // Using fixed dB-per-pixel scaling (similar to PAM FFT plugin) for accurate amplitude display
             const dbValue = Math.max(this.adjustableMinDB, Math.min(this.maxDB, dataLeft[i] + this.amplitudeCalibrationDB));
-            const normalizedDb = (dbValue - this.adjustableMinDB) / (this.maxDB - this.adjustableMinDB);
-            const y = this.plotBottom - normalizedDb * this.plotHeight * this.amplitudeScale;
+            const dbRange = this.maxDB - this.adjustableMinDB;
+            const y = this.plotBottom - ((dbValue - this.adjustableMinDB) / dbRange) * this.plotHeight;
             
             if (isFirstPointLeft) {
                 this.ctx.moveTo(x, y);
@@ -1447,9 +1460,10 @@ class StereoSpectrumAnalyzer {
             const x = this.plotLeft + (Math.log10(frequency / this.minFreq) / Math.log10(this.maxFreq / this.minFreq)) * this.plotWidth;
             // Convert dB value to pixel position (clamp to display range)
             // Apply calibration offset to correct for Web Audio API's internal reference level
+            // Using fixed dB-per-pixel scaling (similar to PAM FFT plugin) for accurate amplitude display
             const dbValue = Math.max(this.adjustableMinDB, Math.min(this.maxDB, dataRight[i] + this.amplitudeCalibrationDB));
-            const normalizedDb = (dbValue - this.adjustableMinDB) / (this.maxDB - this.adjustableMinDB);
-            const y = this.plotBottom - normalizedDb * this.plotHeight * this.amplitudeScale;
+            const dbRange = this.maxDB - this.adjustableMinDB;
+            const y = this.plotBottom - ((dbValue - this.adjustableMinDB) / dbRange) * this.plotHeight;
             
             if (isFirstPointRight) {
                 this.ctx.moveTo(x, y);
@@ -1487,12 +1501,12 @@ class StereoSpectrumAnalyzer {
             // === CONVERT AMPLITUDES TO Y-COORDINATES ===
             // Convert dB values to pixel positions (clamp to display range)
             // Apply calibration offset to correct for Web Audio API's internal reference level
+            // Using fixed dB-per-pixel scaling (similar to PAM FFT plugin) for accurate amplitude display
             const dbLeft = Math.max(this.adjustableMinDB, Math.min(this.maxDB, dataLeft[i] + this.amplitudeCalibrationDB));
             const dbRight = Math.max(this.adjustableMinDB, Math.min(this.maxDB, dataRight[i] + this.amplitudeCalibrationDB));
-            const normalizedDbLeft = (dbLeft - this.adjustableMinDB) / (this.maxDB - this.adjustableMinDB);
-            const normalizedDbRight = (dbRight - this.adjustableMinDB) / (this.maxDB - this.adjustableMinDB);
-            const yLeft = this.plotBottom - normalizedDbLeft * this.plotHeight * this.amplitudeScale;
-            const yRight = this.plotBottom - normalizedDbRight * this.plotHeight * this.amplitudeScale;
+            const dbRange = this.maxDB - this.adjustableMinDB;
+            const yLeft = this.plotBottom - ((dbLeft - this.adjustableMinDB) / dbRange) * this.plotHeight;
+            const yRight = this.plotBottom - ((dbRight - this.adjustableMinDB) / dbRange) * this.plotHeight;
             
             // === DETERMINE IF CHANNELS OVERLAP ===
             const amplitudeDiff = Math.abs(dbLeft - dbRight);
@@ -1687,13 +1701,12 @@ class StereoSpectrumAnalyzer {
             }
             
             // === CONVERT AVERAGED dB VALUES TO Y-COORDINATES ===
-            // Inline the calculations for better performance
+            // Using fixed dB-per-pixel scaling (similar to PAM FFT plugin) for accurate amplitude display
+            // This ensures that dB values align correctly with the vertical ruler
             const dbLeft = Math.max(adjustableMinDB, Math.min(maxDB, avgLeft + calibrationDB));
             const dbRight = Math.max(adjustableMinDB, Math.min(maxDB, avgRight + calibrationDB));
-            const normalizedDbLeft = (dbLeft - adjustableMinDB) / dbRange;
-            const normalizedDbRight = (dbRight - adjustableMinDB) / dbRange;
-            const yLeft = plotBottom - normalizedDbLeft * plotHeight * amplitudeScale;
-            const yRight = plotBottom - normalizedDbRight * plotHeight * amplitudeScale;
+            const yLeft = plotBottom - ((dbLeft - adjustableMinDB) / dbRange) * plotHeight;
+            const yRight = plotBottom - ((dbRight - adjustableMinDB) / dbRange) * plotHeight;
             
             // === DETERMINE IF CHANNELS OVERLAP ===
             const amplitudeDiff = Math.abs(dbLeft - dbRight);
