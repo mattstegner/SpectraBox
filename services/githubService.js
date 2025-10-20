@@ -192,27 +192,45 @@ class GitHubService {
         // Compare versions
         updateAvailable = this.compareVersions(localVersion, remoteInfo.version);
       } catch (releaseError) {
-        logger.warn('Could not get latest release, trying latest commit', { 
+        logger.warn('Could not get latest release', { 
           error: releaseError.message 
         });
         
-        // Fallback to latest commit
-        try {
-          remoteInfo = await this.getLatestCommit();
-          comparisonMethod = 'commit';
-          
-          // For commits, compare SHA if local version looks like a commit hash
-          if (this.isCommitHash(localVersion)) {
+        // Only fallback to commits if local version is also a commit hash
+        if (this.isCommitHash(localVersion)) {
+          logger.info('Local version is a commit hash, checking latest commit');
+          try {
+            remoteInfo = await this.getLatestCommit();
+            comparisonMethod = 'commit';
+            
+            // Compare SHA for commit-based versions
             updateAvailable = localVersion !== remoteInfo.sha && localVersion !== remoteInfo.shortSha;
-          } else {
-            // If local version is not a commit hash, assume update is available
-            updateAvailable = true;
+          } catch (commitError) {
+            logger.error('Could not get latest commit either', { 
+              error: commitError.message 
+            });
+            throw commitError;
           }
-        } catch (commitError) {
-          logger.error('Could not get latest commit either', { 
-            error: commitError.message 
-          });
-          throw commitError;
+        } else {
+          // Local version is a semantic version, but no releases exist on GitHub
+          // Don't report an update available - user should create a release
+          logger.info('No GitHub releases found and local version is semantic - no update available');
+          
+          // Return a result indicating no releases are available
+          return {
+            updateAvailable: false,
+            localVersion,
+            remoteVersion: 'no-releases',
+            remoteInfo: null,
+            comparisonMethod: 'none',
+            lastChecked: new Date().toISOString(),
+            repositoryUrl: `https://github.com/${this.repoOwner}/${this.repoName}`,
+            rateLimitInfo: {
+              remaining: this.rateLimitRemaining,
+              resetTime: this.rateLimitReset
+            },
+            message: 'No GitHub releases found. Update checks require tagged releases.'
+          };
         }
       }
 
