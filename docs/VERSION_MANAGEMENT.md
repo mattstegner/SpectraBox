@@ -56,12 +56,14 @@ The update system is configured through `config/update-config.json`:
 ### Configuration Options
 
 #### GitHub Configuration
+
 - `owner`: GitHub repository owner (default: "mattstegner")
 - `repository`: GitHub repository name (default: "SpectraBox")
 - `apiUrl`: GitHub API base URL (default: "https://api.github.com")
 - `rateLimitCacheTimeout`: Cache timeout for rate limit info in milliseconds
 
 #### Update Configuration
+
 - `enabled`: Enable/disable update functionality (default: true)
 - `checkInterval`: Interval between automatic update checks in milliseconds
 - `autoUpdate`: Enable automatic updates without user confirmation (default: false)
@@ -71,11 +73,13 @@ The update system is configured through `config/update-config.json`:
 - `updateTimeout`: Timeout for update process in milliseconds (default: 600000)
 
 #### Version Configuration
+
 - `filePath`: Path to version file (default: "./Version.txt")
 - `format`: Version format type ("semantic", "commit", "date", "custom")
 - `fallbackValue`: Value to use when version cannot be determined (default: "unknown")
 
 #### Security Configuration
+
 - `validateVersionStrings`: Enable version string validation (default: true)
 - `maxVersionLength`: Maximum allowed version string length (default: 50)
 - `allowedVersionPatterns`: Array of regex patterns for valid version formats
@@ -123,14 +127,18 @@ The system supports multiple version formats:
 ### Update Methods
 
 #### Manual Updates
+
 Users can trigger updates through the web interface:
+
 1. Navigate to Settings → Server tab
 2. Click "Check for Updates"
 3. If update available, click "Update Now"
 4. Confirm the update when prompted
 
 #### Automatic Updates (Optional)
+
 When `autoUpdate` is enabled in configuration:
+
 - System checks for updates at configured intervals
 - Updates are applied automatically without user intervention
 - Status updates are provided through WebSocket connections
@@ -154,6 +162,7 @@ Real-time update status is available through:
 - **Web Interface**: Live progress display
 
 Status includes:
+
 - Current status (idle, checking, updating, success, error)
 - Progress percentage
 - Status messages
@@ -165,12 +174,13 @@ Status includes:
 ### Version Management
 
 #### GET /api/version
+
 Returns current application version:
 
 ```json
 {
   "success": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "versionFile": {
     "available": true,
     "path": "/path/to/Version.txt"
@@ -180,41 +190,44 @@ Returns current application version:
 ```
 
 #### GET /api/update/check
+
 Checks for available updates:
 
 ```json
 {
   "success": true,
   "updateAvailable": true,
-  "currentVersion": "1.0.0",
-  "latestVersion": "1.1.0",
+  "currentVersion": "1.1.0",
+  "latestVersion": "1.2.0",
   "updateInfo": {
     "comparisonMethod": "release",
     "repositoryUrl": "https://github.com/mattstegner/SpectraBox",
     "lastChecked": "2024-01-15T10:30:00.000Z",
     "remoteInfo": {
-      "version": "1.1.0",
+      "version": "1.2.0",
       "publishedAt": "2024-01-15T09:00:00.000Z",
-      "htmlUrl": "https://github.com/mattstegner/SpectraBox/releases/tag/v1.1.0"
+      "htmlUrl": "https://github.com/mattstegner/SpectraBox/releases/tag/v1.2.0"
     }
   }
 }
 ```
 
 #### POST /api/update/execute
+
 Triggers the update process:
 
 ```json
 {
   "success": true,
   "message": "Update process initiated. Server will restart automatically.",
-  "currentVersion": "1.0.0",
-  "latestVersion": "1.1.0",
-  "userFriendlyMessage": "Updating from version 1.0.0 to 1.1.0. The server will restart automatically when complete."
+  "currentVersion": "1.1.0",
+  "latestVersion": "1.2.0",
+  "userFriendlyMessage": "Updating from version 1.1.0 to 1.2.0. The server will restart automatically when complete."
 }
 ```
 
 #### GET /api/update/status
+
 Returns current update status:
 
 ```json
@@ -232,6 +245,7 @@ Returns current update status:
 ### Version String Validation
 
 All version strings are validated to prevent:
+
 - Path traversal attacks
 - Code injection
 - Malformed data
@@ -240,6 +254,7 @@ All version strings are validated to prevent:
 ### Update Script Security
 
 The update script runs with:
+
 - Limited permissions
 - Input validation
 - Secure file operations
@@ -248,6 +263,7 @@ The update script runs with:
 ### API Security
 
 Update endpoints include:
+
 - Rate limiting
 - Input validation
 - Authentication checks (future enhancement)
@@ -267,6 +283,7 @@ During initial deployment:
 ### Update Script Permissions
 
 The update script requires:
+
 - Execute permissions: `chmod +x scripts/spectrabox-kiosk-install.sh`
 - Sudo access for system operations
 - Write access to application directory
@@ -275,6 +292,7 @@ The update script requires:
 ### Environment Verification
 
 The deployment process verifies:
+
 - Node.js version compatibility
 - Required system packages
 - Network connectivity
@@ -286,31 +304,38 @@ The deployment process verifies:
 ### Common Issues
 
 #### Version File Missing
+
 **Symptom**: Version shows as "unknown"
-**Solution**: 
+**Solution**:
+
 ```bash
-echo "1.0.0" > Version.txt
+echo "1.1.0" > Version.txt
 chown pi:pi Version.txt
 ```
 
 #### Update Script Not Executable
+
 **Symptom**: Update fails with permission error
 **Solution**:
+
 ```bash
 chmod +x scripts/spectrabox-kiosk-install.sh
 ```
 
 #### GitHub API Rate Limiting
+
 **Symptom**: Update check fails with rate limit error
 **Solution**: Wait for rate limit reset or configure authentication
 
 #### Network Connectivity Issues
+
 **Symptom**: Cannot connect to GitHub
 **Solution**: Check internet connection and firewall settings
 
 ### Logging
 
 Update process logs are available through:
+
 - **systemd journal**: `sudo journalctl -u spectrabox -f`
 - **Application logs**: Check server.log file
 - **Update status**: Monitor through web interface
@@ -318,6 +343,7 @@ Update process logs are available through:
 ### Recovery
 
 If an update fails:
+
 1. **Automatic Recovery**: System attempts to restore previous version
 2. **Manual Recovery**: Restore from backup if available
 3. **Fresh Installation**: Re-run deployment script if necessary
@@ -325,24 +351,28 @@ If an update fails:
 ## Best Practices
 
 ### Version Management
+
 - Use semantic versioning for releases
 - Tag releases in GitHub
 - Keep Version.txt file in sync with releases
 - Test version comparison logic
 
 ### Update Process
+
 - Test updates in development environment
 - Create backups before updates
 - Monitor update process through logs
 - Verify functionality after updates
 
 ### Configuration
+
 - Review configuration regularly
 - Adjust timeouts based on system performance
 - Enable security validation
 - Monitor rate limits
 
 ### Monitoring
+
 - Set up health checks
 - Monitor update status
 - Track version changes
@@ -357,6 +387,7 @@ If an update fails:
 ## Future Enhancements
 
 ### Planned Features
+
 - **Rollback Capability**: Ability to rollback to previous version
 - **Update Scheduling**: Schedule updates for specific times
 - **Update Notifications**: Email/webhook notifications for updates
@@ -364,6 +395,7 @@ If an update fails:
 - **Staged Updates**: Test updates before full deployment
 
 ### Configuration Enhancements
+
 - **Environment-specific Configuration**: Different configs for dev/prod
 - **Remote Configuration**: Load configuration from remote source
 - **Configuration Validation**: Enhanced validation and error reporting

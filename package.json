@@ -1,6 +1,6 @@
 {
   "name": "spectrabox",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cross-platform Node.js web application for audio device management on Raspberry Pi",
   "main": "server.js",
   "scripts": {
