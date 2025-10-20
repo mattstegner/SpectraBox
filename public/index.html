@@ -454,6 +454,51 @@
         background-color: #aa00ff;
       }
 
+      .ms-toggle-btn {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        background-color: #333;
+        color: #fff;
+        border: 1px solid #555;
+        padding: 10px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 14px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        transition: background-color 0.2s;
+        font-weight: bold;
+      }
+
+      .ms-toggle-btn:hover {
+        background-color: #555;
+      }
+
+      .ms-toggle-btn.active {
+        background-color: #0066cc;
+        border-color: #0088ff;
+      }
+
+      .ms-toggle-btn.active:hover {
+        background-color: #0088ff;
+      }
+
+      .ms-toggle-btn:disabled {
+        background-color: #222;
+        border-color: #444;
+        color: #666;
+        cursor: not-allowed;
+      }
+
+      .ms-toggle-btn:disabled:hover {
+        background-color: #222;
+      }
+
       /* Compact info sections */
       .info-section, .network-status-display, .server-config-display, .access-info-display {
         background: rgba(0, 0, 0, 0.3);
@@ -1023,6 +1068,9 @@
       <button class="freeze-btn freeze-btn-3" id="freezeBtn3">3</button>
       <button class="freeze-btn freeze-btn-4" id="freezeBtn4">4</button>
 
+      <!-- Mid-Side Toggle Button -->
+      <button class="ms-toggle-btn" id="msToggleBtn" title="Toggle Mid-Side Mode (ST ↔ MS)">ST</button>
+
       <!-- Settings Panel -->
       <div class="settings-panel" id="settingsPanel">
         <div class="settings-tabs">
@@ -1161,7 +1209,7 @@
 
             <div class="setting-item">
               <label for="smoothingSlider"
-                >Responsiveness: <span id="smoothingValue">90</span></label
+                >Responsiveness: <span id="smoothingValue">50</span></label
               >
               <input
                 type="range"
@@ -1169,7 +1217,7 @@
                 min="1"
                 max="100"
                 step="1"
-                value="90"
+                value="50"
               />
             </div>
 
@@ -1353,6 +1401,20 @@
                 <option value="C">C-weighting (Entertainment)</option>
               </select>
             </div>
+
+            <div class="setting-item">
+              <label for="msEnergyPreservingToggle"
+                >Mid-Side Energy Preserving (√2 Scaling):</label
+              >
+              <label class="toggle-switch">
+                <input type="checkbox" id="msEnergyPreservingToggle" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="font-size: 12px; color: #aaa; margin-top: 5px; margin-bottom: 15px;">
+              √2 scaling preserves energy (+3dB for mono) or simple sum/diff for visualization (+6dB for mono).
+            </div>
           </div>
 
           <!-- Performance Tab -->
@@ -1497,6 +1559,7 @@
     <div class="status" id="status">Click "Start" to begin</div>
 
     <!-- Include the JavaScript files -->
+    <script src="js/midSideProcessor.js"></script>
     <script src="js/meters.js"></script>
     <script src="js/spectrogram.js"></script>
     <script src="js/settings-persistence.js"></script>

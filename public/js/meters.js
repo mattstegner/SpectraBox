@@ -98,11 +98,18 @@ class LevelMeters {
         this.cWeightingFiltersLeft = this.initializeCWeightingFilters();
         this.cWeightingFiltersRight = this.initializeCWeightingFilters();
         
-        // === DEDICATED METER ANALYZERS ===
-        // References to dedicated analyzer nodes (independent of spectrogram FFT size)
-        this.meterAnalyserLeft = null;          // Dedicated left channel analyzer for meters
-        this.meterAnalyserRight = null;         // Dedicated right channel analyzer for meters
-    }
+    // === DEDICATED METER ANALYZERS ===
+    // References to dedicated analyzer nodes (independent of spectrogram FFT size)
+    this.meterAnalyserLeft = null;          // Dedicated left channel analyzer for meters
+    this.meterAnalyserRight = null;         // Dedicated right channel analyzer for meters
+    
+    // === METER LABELS (for Mid-Side mode support) ===
+    // Store current meter labels so they can be dynamically changed
+    this.peakLeftLabel = 'PK L';            // Peak left meter label (or 'PK M' in MS mode)
+    this.rmsLeftLabel = 'RMS L';            // RMS left meter label (or 'RMS M' in MS mode)
+    this.peakRightLabel = 'PK R';           // Peak right meter label (or 'PK S' in MS mode)
+    this.rmsRightLabel = 'RMS R';           // RMS right meter label (or 'RMS S' in MS mode)
+  }
     
     /**
      * Initialize the level meters when audio starts
@@ -152,6 +159,26 @@ class LevelMeters {
      */
     setMeterSpeed(speedName) {
         this.currentMeterSpeed = this.meterSpeeds[speedName];
+    }
+    
+    /**
+     * Update meter labels based on current mode (Stereo or Mid-Side)
+     * @param {string} mode - 'ST' for Stereo mode or 'MS' for Mid-Side mode
+     */
+    updateMeterLabels(mode) {
+        if (mode === 'MS') {
+            // Mid-Side mode labels
+            this.peakLeftLabel = 'PK M';     // Peak Mid
+            this.rmsLeftLabel = 'RMS M';     // RMS Mid
+            this.peakRightLabel = 'PK S';    // Peak Side
+            this.rmsRightLabel = 'RMS S';    // RMS Side
+        } else {
+            // Stereo mode labels (default)
+            this.peakLeftLabel = 'PK L';     // Peak Left
+            this.rmsLeftLabel = 'RMS L';     // RMS Left
+            this.peakRightLabel = 'PK R';    // Peak Right
+            this.rmsRightLabel = 'RMS R';    // RMS Right
+        }
     }
     
     /**
@@ -580,13 +607,15 @@ class LevelMeters {
         
         // === DRAW PEAK METERS ===
         // Peak meters show instantaneous maximum levels - good for detecting clipping
-        this.drawSingleMeter(this.peakLeftMeter, this.peakLevelLeft, 'PK L', this.peakHoldLeft, this.storedDisplayValues.peakLeft);
-        this.drawSingleMeter(this.peakRightMeter, this.peakLevelRight, 'PK R', this.peakHoldRight, this.storedDisplayValues.peakRight);
+        // Use dynamic labels that change based on Stereo/Mid-Side mode
+        this.drawSingleMeter(this.peakLeftMeter, this.peakLevelLeft, this.peakLeftLabel, this.peakHoldLeft, this.storedDisplayValues.peakLeft);
+        this.drawSingleMeter(this.peakRightMeter, this.peakLevelRight, this.peakRightLabel, this.peakHoldRight, this.storedDisplayValues.peakRight);
         
         // === DRAW RMS METERS ===
         // RMS meters show average energy levels - better for perceived loudness
-        this.drawSingleMeter(this.rmsLeftMeter, this.rmsLevelLeft, 'RMS L', this.rmsHoldLeft, this.storedDisplayValues.rmsLeft);
-        this.drawSingleMeter(this.rmsRightMeter, this.rmsLevelRight, 'RMS R', this.rmsHoldRight, this.storedDisplayValues.rmsRight);
+        // Use dynamic labels that change based on Stereo/Mid-Side mode
+        this.drawSingleMeter(this.rmsLeftMeter, this.rmsLevelLeft, this.rmsLeftLabel, this.rmsHoldLeft, this.storedDisplayValues.rmsLeft);
+        this.drawSingleMeter(this.rmsRightMeter, this.rmsLevelRight, this.rmsRightLabel, this.rmsHoldRight, this.storedDisplayValues.rmsRight);
         
         // === DRAW PHASE CORRELATION METER ===
         // Shows phase relationship between left and right channels

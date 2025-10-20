@@ -49,12 +49,14 @@ class PreferencesService {
           maxFrequency: 20000,
           inputGain: 0.0,
           holdMode: 'latch',
-          averageTime: 10
+          averageTime: 10,
+          midSideMode: false,  // Mid-Side mode (false = Stereo, true = Mid-Side)
+          msEnergyPreserving: false  // Mid-Side √2 scaling (false = simple sum/diff, true = energy-preserving)
         },
         // Spectrogram Interface tab settings
         spectrogramInterface: {
           clickInfoSize: 'large',
-          responsiveness: 90,
+          responsiveness: 50,
           amplitudeOffset: 0.0,
           overlappingDisplay: true,
           overlapTolerance: 1.0,
@@ -101,7 +103,9 @@ class PreferencesService {
         maxFrequency: { type: 'number', min: 6000, max: 20000 },
         inputGain: { type: 'number', min: -30, max: 12 },
         holdMode: { type: 'string', enum: ['latch', 'average'] },
-        averageTime: { type: 'number', min: 1, max: 15 }
+        averageTime: { type: 'number', min: 1, max: 15 },
+        midSideMode: { type: 'boolean' },
+        msEnergyPreserving: { type: 'boolean' }
       },
       spectrogramInterface: {
         clickInfoSize: { type: 'string', enum: ['small', 'large'] },

@@ -5,6 +5,7 @@ A real-time spectrum analyzer and audio visualization application designed to ru
 ## Features
 
 - **Real-time stereo spectrum analysis** with customizable frequency ranges
+- **Mid-Side (M/S) processing mode** for analyzing stereo width and mono compatibility
 - **Peak and RMS level meters** for accurate audio monitoring
 - **Phase correlation meter** for stereo field analysis
 - **Multiple audio input device support** with automatic device detection
@@ -22,11 +23,13 @@ A real-time spectrum analyzer and audio visualization application designed to ru
 The easiest way to get SpectraBox running on a Raspberry Pi is using our automated deployment script:
 
 **Method 1: Direct Installation (fastest)**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
 ```
 
 **Method 2: Alternative Installation (if you encounter download issues)**
+
 ```bash
 wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
 chmod +x spectrabox-kiosk-install.sh
@@ -34,6 +37,7 @@ sudo ./spectrabox-kiosk-install.sh
 ```
 
 **Method 3: Manual Installation (for advanced users)**
+
 ```bash
 git clone https://github.com/mattstegner/SpectraBox.git
 cd SpectraBox
@@ -41,6 +45,7 @@ sudo ./scripts/spectrabox-kiosk-install.sh
 ```
 
 All methods will:
+
 - Install all required dependencies (Node.js, audio libraries, browser)
 - Set up the SpectraBox application
 - Configure automatic startup and kiosk mode
@@ -48,6 +53,7 @@ All methods will:
 - Start the service and make it available on your network
 
 **Requirements:**
+
 - Raspberry Pi 4 or newer (Pi 4 with 2GB+ RAM recommended)
 - Raspberry Pi OS (32-bit or 64-bit)
 - Internet connection
@@ -57,6 +63,7 @@ All methods will:
 If you encounter errors like "cho: command not found" or "curl: (23) Failure writing output to destination", use Method 2 above, which downloads the script locally first to avoid piping issues.
 
 After installation, access SpectraBox at:
+
 - **Local**: `https://localhost:3000`
 - **Network**: `https://your-pi-ip:3000`
 
@@ -65,27 +72,32 @@ After installation, access SpectraBox at:
 For development or installation on other platforms:
 
 1. **Clone the repository:**
+
 ```bash
 git clone https://github.com/mattstegner/SpectraBox.git
 cd SpectraBox
 ```
 
 2. **Install dependencies:**
+
 ```bash
 npm install
 ```
 
 **Dependencies:**
+
 - `express` - Web server framework
 - `cors` - Cross-origin resource sharing middleware
 - `ws` - WebSocket library for real-time update status communication
 
 3. **Generate SSL certificates (recommended):**
+
 ```bash
 node generate-ssl.js
 ```
 
 4. **Start the server:**
+
 ```bash
 node server.js
 ```
@@ -99,6 +111,7 @@ node server.js
 For detailed installation instructions, configuration options, troubleshooting, and advanced setup, see the **[DEPLOYMENT.md](DEPLOYMENT.md)** file.
 
 The deployment guide includes:
+
 - **Step-by-step manual installation** for custom setups
 - **Configuration options** for different environments
 - **Kiosk mode setup** for dedicated displays
@@ -126,6 +139,7 @@ By default, SpectraBox binds to `0.0.0.0:3000`, making it accessible from any de
 - **Network access**: `https://your-device-ip:3000`
 
 Find your device's IP address:
+
 - **Raspberry Pi/Linux**: `hostname -I`
 - **macOS**: `ifconfig | grep "inet "`
 - **Windows**: `ipconfig`
@@ -133,6 +147,7 @@ Find your device's IP address:
 ### Network Tab
 
 The application includes a dedicated **Network** tab in the settings that shows:
+
 - Current network status and accessibility
 - Server configuration details
 - Access URLs for local and network connections
@@ -141,10 +156,67 @@ The application includes a dedicated **Network** tab in the settings that shows:
 ### Server Tab
 
 The application includes a **Server** tab for server management:
+
 - Current version information
 - Update availability checking
 - Real-time update progress monitoring via WebSocket
 - Server update execution with progress tracking
+
+## Mid-Side (M/S) Mode
+
+SpectraBox includes professional Mid-Side (M/S) processing for analyzing stereo width and mono compatibility.
+
+### What is Mid-Side Processing?
+
+Mid-Side encoding is a technique used in audio production and mastering to analyze and process stereo signals:
+
+- **Mid (M)**: The mono-compatible center content (what you hear if you sum L+R)
+- **Side (S)**: The stereo difference information (what makes the signal "wide")
+
+### Using M/S Mode
+
+1. **Toggle Button**: Located at the bottom-left of the display
+
+   - **ST**: Stereo mode (default) - shows Left and Right channels
+   - **MS**: Mid-Side mode - shows Mid and Side components
+
+2. **How to Use**:
+
+   - Click the button to toggle between Stereo (ST) and Mid-Side (MS) modes
+   - The spectrogram display updates to show:
+     - **Mid channel** (replaces Left trace) - green line
+     - **Side channel** (replaces Right trace) - blue line
+   - Meter labels automatically update:
+     - Stereo: `PK L`, `RMS L`, `PK R`, `RMS R`
+     - Mid-Side: `PK M`, `RMS M`, `PK S`, `RMS S`
+
+3. **Requirements**: M/S mode requires a **stereo input**
+   - The button is automatically disabled for mono inputs
+   - Tooltip indicates when stereo input is required
+
+### Technical Details
+
+**Two Encoding Modes Available** (configurable in Meters tab):
+
+1. **Simple Sum/Difference (Default)**
+
+   - Formulas: `M = L + R` (sum), `S = L - R` (difference)
+   - Mono signals (L=R) show +6dB boost in Mid channel
+   - Anti-phase signals (L=-R) show +6dB boost in Side channel
+   - More intuitive for direct visualization
+
+2. **Energy-Preserving (√2 Scaling)**
+   - Formulas: `M = (L + R) / √2`, `S = (L - R) / √2`
+   - Mono signals (L=R) show +3dB boost in Mid channel
+   - Anti-phase signals (L=-R) show +3dB boost in Side channel
+   - Maintains RMS levels for accurate metering
+
+### Applications
+
+- **Mono compatibility checking**: All energy in Mid means good mono compatibility (expect +6dB for mono sources)
+- **Stereo width analysis**: More Side energy indicates wider stereo image
+- **Phase issue detection**: Anti-phase signals show all energy in Side
+- **Mixing and mastering**: Helps visualize center vs. stereo content balance
 
 ## Audio Input Support
 
@@ -183,6 +255,7 @@ SpectraBox is perfect for:
 ## System Requirements
 
 ### Minimum Requirements
+
 - **CPU**: ARM Cortex-A53 (Raspberry Pi 3B+) or equivalent x86/x64
 - **RAM**: 1GB (2GB+ recommended)
 - **Storage**: 2GB free space
@@ -190,6 +263,7 @@ SpectraBox is perfect for:
 - **Audio**: USB microphone or audio interface
 
 ### Recommended Setup
+
 - **Raspberry Pi 4** with 2GB+ RAM
 - **Class 10 SD card** or USB 3.0 storage
 - **Quality USB audio interface** for professional use
