@@ -275,6 +275,7 @@ SpectraBox is perfect for:
 - **[Installation Guide](DEPLOYMENT.md)** - Complete setup and deployment instructions
 - **[Version Management](docs/VERSION_MANAGEMENT.md)** - Understanding the update system
 - **[Release Management](docs/RELEASE_MANAGEMENT.md)** - Guide for developers creating updates
+- **[How to Update Version](docs/HOW_TO_UPDATE_VERSION.md)** - Step-by-step guide for releasing new versions
 - **Troubleshooting** - Check the deployment guide for common issues and solutions
 - **GitHub Issues**: Report bugs or request features on the GitHub repository
 - **Network Testing**: Use the included network test script for connectivity verification
