@@ -1,12 +1,12 @@
 {
   "github": {
-    "owner": "newowner",
-    "repository": "newrepo",
+    "owner": "mattstegner",
+    "repository": "SpectraBox",
     "apiUrl": "https://api.github.com",
     "rateLimitCacheTimeout": 300000
   },
   "update": {
-    "enabled": false,
+    "enabled": true,
     "checkInterval": 3600000,
     "autoUpdate": false,
     "updateScript": "./scripts/spectrabox-kiosk-install.sh",

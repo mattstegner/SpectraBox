@@ -107,7 +107,7 @@ class VersionManager {
       const version = versionData.trim();
 
       // Enhanced validation
-      const validation = this.validateVersionString(version);
+      const validation = await this.validateVersionString(version);
       if (!validation.valid) {
         logger.warn('Version file contains invalid version string', { 
           version: version.substring(0, 50), // Limit logged version length
