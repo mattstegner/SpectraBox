@@ -360,6 +360,7 @@ if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
   exec "\${BROWSER_BIN}" \\
     --kiosk "\${URL}" \\
     --app="\${URL}" \\
+    --password-store=basic \\
     --noerrdialogs \\
     --disable-session-crashed-bubble \\
     --autoplay-policy=no-user-gesture-required \\

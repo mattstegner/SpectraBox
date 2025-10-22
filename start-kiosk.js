@@ -21,6 +21,7 @@ const config = {
     url: `https://localhost:${process.env.PORT || 3000}`, // Use HTTPS for microphone permissions
     chromiumArgs: [
       '--kiosk',
+      '--password-store=basic',  // Prevent keyring dialogs on Linux
       '--no-first-run',
       '--disable-infobars',
       '--disable-session-crashed-bubble',
