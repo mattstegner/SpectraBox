@@ -143,6 +143,7 @@ if confirm_step "4" "Choose and install browser (Chromium/Firefox fallback)" "De
     BROWSER_PKG="firefox-esr"
   else
     err "No supported browser package found in APT (chromium/chromium-browser/firefox-esr)."
+    exit 1
   fi
   apt-get install -y "$BROWSER_PKG"
 
@@ -150,7 +151,10 @@ if confirm_step "4" "Choose and install browser (Chromium/Firefox fallback)" "De
   BROWSER_BIN="$(command -v chromium || true)"
   BROWSER_BIN="${BROWSER_BIN:-$(command -v chromium-browser || true)}"
   BROWSER_BIN="${BROWSER_BIN:-$(command -v firefox-esr || true)}"
-  [[ -n "$BROWSER_BIN" ]] || err "Unable to locate browser binary after install."
+  if [[ -z "$BROWSER_BIN" ]]; then
+    err "Unable to locate browser binary after install."
+    exit 1
+  fi
   step "Browser package: ${BROWSER_PKG}"
   step "Browser binary : ${BROWSER_BIN}"
   ok "Browser installed"
@@ -160,6 +164,10 @@ else
   BROWSER_BIN="$(command -v chromium || true)"
   BROWSER_BIN="${BROWSER_BIN:-$(command -v chromium-browser || true)}"
   BROWSER_BIN="${BROWSER_BIN:-$(command -v firefox-esr || true)}"
+  if [[ -z "$BROWSER_BIN" ]]; then
+    err "No browser found on system. Install chromium, chromium-browser, or firefox-esr first."
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------
@@ -182,9 +190,9 @@ CURRENT_STEP="npm install"
 if confirm_step "6" "Install app dependencies (production)" "Run npm ci/install with production deps only"; then
   cd "$APP_DIR"
   if [[ -f package-lock.json ]]; then
-    sudo -u "$PI_USER" npm ci --only=production
+    sudo -u "$PI_USER" npm ci --omit=dev
   else
-    sudo -u "$PI_USER" npm install --only=production
+    sudo -u "$PI_USER" npm install --omit=dev
   fi
   ok "Node dependencies installed"
 else
@@ -227,6 +235,7 @@ if confirm_step "8" "Create systemd service for SpectraBox" "Create/enable spect
     EXEC_START="/usr/bin/node ${APP_DIR}/server.js"
   else
     err "No start script or server.js found in repo."
+    exit 1
   fi
 
   SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -427,6 +436,49 @@ EOF
 EOF
     chown -R "$PI_USER:$PI_USER" "$OPENBOX_DIR"
   fi
+
+  ########################################################################
+  # ADDED (1): Wayland-safe user-level systemd service to launch the kiosk
+  ########################################################################
+  USER_SYSTEMD_DIR="$PI_HOME/.config/systemd/user"
+  USER_SERVICE_FILE="$USER_SYSTEMD_DIR/spectrabox-kiosk.service"
+  install -d -m 755 "$USER_SYSTEMD_DIR"
+  cat > "$USER_SERVICE_FILE" <<EOF
+[Unit]
+Description=Launch SpectraBox browser in kiosk after login
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=${START_KIOSK}
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+EOF
+  chown -R "$PI_USER:$PI_USER" "$USER_SYSTEMD_DIR"
+  # Enable for the user (best-effort; may no-op until first login)
+  sudo -u "$PI_USER" systemctl --user daemon-reload 2>/dev/null || true
+  sudo -u "$PI_USER" systemctl --user enable spectrabox-kiosk.service 2>/dev/null || true
+
+  ########################################################################
+  # ADDED (2): Wayfire autostart entry (Wayland) to run the kiosk script
+  ########################################################################
+  WAYFIRE_INI="$PI_HOME/.config/wayfire.ini"
+  install -d -m 755 "$PI_HOME/.config"
+  touch "$WAYFIRE_INI"
+  chown "$PI_USER:$PI_USER" "$WAYFIRE_INI"
+
+  # Ensure [autostart] section exists and contains a kiosk entry
+  if ! grep -q '^\[autostart\]' "$WAYFIRE_INI"; then
+    printf "[autostart]\n" >> "$WAYFIRE_INI"
+  fi
+  if ! grep -q '^kiosk[[:space:]]*=[[:space:]]*' "$WAYFIRE_INI"; then
+    printf "kiosk = bash -lc \"%q\"\n" "$START_KIOSK" >> "$WAYFIRE_INI"
+  fi
+  ########################################################################
+
   ok "Kiosk autostart configured"
 else
   warn "Skipped kiosk launcher creation"
