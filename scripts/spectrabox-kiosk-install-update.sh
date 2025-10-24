@@ -289,6 +289,33 @@ if confirm_step "9" "Configure Desktop autologin / GUI boot (Pi OS only)" "Use r
     warn "raspi-config not present (likely Debian). Skipping Pi-specific boot settings."
     systemctl set-default graphical.target || true
   fi
+
+  # ---- ADDED: ensure LightDM points at a valid session on Bookworm/Trixie ----
+  # Some Trixie systems end up with LightDM pointing at a non-existent session
+  # (e.g. LXDE-pi-wayfire), which yields "Failed to start session".
+  SESSION_NAME=""
+  if [[ -f /usr/share/wayland-sessions/rpd-labwc.desktop ]]; then
+    SESSION_NAME="rpd-labwc"
+  elif [[ -f /usr/share/wayland-sessions/wayfire-pi.desktop ]]; then
+    SESSION_NAME="wayfire-pi"
+  elif [[ -f /usr/share/xsessions/LXDE-pi.desktop ]]; then
+    SESSION_NAME="LXDE-pi"
+  fi
+
+  if [[ -n "$SESSION_NAME" ]]; then
+    install -d /etc/lightdm/lightdm.conf.d
+    cat > /etc/lightdm/lightdm.conf.d/50-spectrabox-session.conf <<EOF
+[Seat:*]
+autologin-user=${PI_USER}
+autologin-user-timeout=0
+user-session=${SESSION_NAME}
+autologin-session=${SESSION_NAME}
+EOF
+    ok "LightDM session forced to '${SESSION_NAME}' (autologin user ${PI_USER})"
+  else
+    warn "No known Wayland/X11 session found; LightDM session not overridden."
+  fi
+  # ---------------------------------------------------------------------------
 else
   warn "Skipped desktop boot configuration"
 fi
@@ -463,7 +490,7 @@ EOF
   sudo -u "$PI_USER" systemctl --user enable spectrabox-kiosk.service 2>/dev/null || true
 
   ########################################################################
-  # ADDED (2): Wayfire autostart entry (Wayland) to run the kiosk script
+  # ADDED (2): Wayfire/Labwc autostart entry (Wayland) to run the kiosk
   ########################################################################
   WAYFIRE_INI="$PI_HOME/.config/wayfire.ini"
   install -d -m 755 "$PI_HOME/.config"
