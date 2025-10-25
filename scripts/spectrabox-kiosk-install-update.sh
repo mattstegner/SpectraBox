@@ -76,6 +76,21 @@ step "Home dir   : $PI_HOME"
 step "App dir    : $APP_DIR"
 
 # ---------------------------------------------------------
+CURRENT_STEP="detect display server"
+banner "Detecting display server (X11 vs Wayland)"
+# Detect if system uses Wayland (Trixie/newer) or X11 (Bookworm/older)
+DISPLAY_SERVER="x11"
+if [[ -f /usr/bin/labwc ]] || [[ -f /usr/bin/wayfire ]]; then
+  DISPLAY_SERVER="wayland"
+  step "Detected: Wayland (labwc/wayfire compositor)"
+elif [[ -f /usr/share/wayland-sessions/rpd-labwc.desktop ]] || [[ -f /usr/share/wayland-sessions/wayfire-pi.desktop ]]; then
+  DISPLAY_SERVER="wayland"
+  step "Detected: Wayland session files present"
+else
+  step "Detected: X11 (traditional)"
+fi
+
+# ---------------------------------------------------------
 CURRENT_STEP="system update"
 if confirm_step "1" "System update & base packages" "Update/upgrade APT and install core tools + libs needed by Chromium and audio"; then
   export DEBIAN_FRONTEND=noninteractive
@@ -83,9 +98,18 @@ if confirm_step "1" "System update & base packages" "Update/upgrade APT and inst
   apt-get upgrade -y
   apt-get install -y --no-install-recommends \
     ca-certificates curl wget git jq xdg-utils \
-    xdotool unclutter \
     libnss3 libatk1.0-0 libxss1 libasound2 \
     alsa-utils openssl
+
+  # X11 tools only if not using Wayland
+  if [[ "${DISPLAY_SERVER}" == "x11" ]]; then
+    apt-get install -y --no-install-recommends xdotool unclutter
+    step "Installed X11 tools (xdotool, unclutter)"
+  else
+    # Wayland alternatives (wtype for keyboard simulation if needed)
+    apt-get install -y --no-install-recommends wtype || true
+    step "Skipped X11 tools (Wayland system)"
+  fi
   ok "System packages installed/updated"
 else
   warn "Skipped base package install"
@@ -359,23 +383,31 @@ if confirm_step "11" "Create kiosk launcher & autostart entry" "Write start/exit
   install -d -m 755 "$AUTOSTART_DIR" "$OPENBOX_DIR"
 
   # Use the detected browser binary; wait for audio + server
-  cat > "$START_KIOSK" <<EOS
+  cat > "$START_KIOSK" <<'EOS'
 #!/usr/bin/env bash
 set -e
 set -u
 set -o pipefail
-export DISPLAY=\${DISPLAY:-:0}
+export DISPLAY=${DISPLAY:-:0}
 
-# Disable blanking / power management
-xset s off || true
-xset -dpms || true
-xset s noblank || true
+URL="URL_PLACEHOLDER"
+BROWSER_BIN="BROWSER_BIN_PLACEHOLDER"
 
-# Hide mouse after idle
-unclutter -idle 0.5 -root >/dev/null 2>&1 &
+# Detect session type (Wayland or X11)
+SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
 
-URL="${URL}"
-BROWSER_BIN="${BROWSER_BIN}"
+# ---- X11-specific settings ----
+if [[ "$SESSION_TYPE" == "x11" ]]; then
+  # Disable blanking / power management (X11 only)
+  xset s off 2>/dev/null || true
+  xset -dpms 2>/dev/null || true
+  xset s noblank 2>/dev/null || true
+  
+  # Hide mouse after idle (X11 only)
+  if command -v unclutter >/dev/null 2>&1; then
+    unclutter -idle 0.5 -root >/dev/null 2>&1 &
+  fi
+fi
 
 # ---- Wait for audio server (PipeWire or Pulse shim) ----
 for i in {1..20}; do
@@ -389,46 +421,58 @@ done
 
 # ---- Wait for SpectraBox to respond (up to 60s) ----
 for i in {1..60}; do
-  if command -v curl >/dev/null 2>&1 && curl -sk --max-time 1 "\${URL}/api/health" >/dev/null 2>&1; then
+  if command -v curl >/dev/null 2>&1 && curl -sk --max-time 1 "${URL}/api/health" >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
 
 # Chromium vs Firefox flags
-if [[ "\${BROWSER_BIN}" == *"chromium"* ]]; then
+if [[ "${BROWSER_BIN}" == *"chromium"* ]]; then
   EXTRA_HTTP_FLAG=""
-  if [[ "\${URL}" =~ ^http:// ]]; then
-    EXTRA_HTTP_FLAG="--unsafely-treat-insecure-origin-as-secure=\${URL}"
+  if [[ "${URL}" =~ ^http:// ]]; then
+    EXTRA_HTTP_FLAG="--unsafely-treat-insecure-origin-as-secure=${URL}"
   fi
-  exec "\${BROWSER_BIN}" \\
-    --kiosk "\${URL}" \\
-    --app="\${URL}" \\
-    --password-store=basic \\
-    --noerrdialogs \\
-    --disable-session-crashed-bubble \\
-    --autoplay-policy=no-user-gesture-required \\
-    --ignore-certificate-errors \\
-    --start-maximized \\
-    --incognito \\
-    --allow-running-insecure-content \\
-    --disable-web-security \\
-    --use-fake-ui-for-media-stream \\
-    --enable-features=HardwareMediaKeyHandling \\
-    --hide-scrollbars \\
-    --disable-scroll-bounce \\
-    --disable-features=OverscrollHistoryNavigation \\
-    --overscroll-history-navigation=0 \\
-    --disable-pinch \\
-    --disable-smooth-scrolling \\
-    --force-device-scale-factor=1 \\
-    \${EXTRA_HTTP_FLAG}
+  
+  # Wayland-specific flag
+  WAYLAND_FLAG=""
+  if [[ "$SESSION_TYPE" == "wayland" ]]; then
+    WAYLAND_FLAG="--ozone-platform=wayland"
+  fi
+  
+  exec "${BROWSER_BIN}" \
+    --kiosk "${URL}" \
+    --app="${URL}" \
+    --password-store=basic \
+    --noerrdialogs \
+    --disable-session-crashed-bubble \
+    --autoplay-policy=no-user-gesture-required \
+    --ignore-certificate-errors \
+    --start-maximized \
+    --incognito \
+    --allow-running-insecure-content \
+    --disable-web-security \
+    --use-fake-ui-for-media-stream \
+    --enable-features=HardwareMediaKeyHandling \
+    --hide-scrollbars \
+    --disable-scroll-bounce \
+    --disable-features=OverscrollHistoryNavigation \
+    --overscroll-history-navigation=0 \
+    --disable-pinch \
+    --disable-smooth-scrolling \
+    --force-device-scale-factor=1 \
+    ${WAYLAND_FLAG} \
+    ${EXTRA_HTTP_FLAG}
 else
   # Firefox ESR fallback
-  exec "\${BROWSER_BIN}" \\
-    --kiosk "\${URL}"
+  exec "${BROWSER_BIN}" \
+    --kiosk "${URL}"
 fi
 EOS
+  
+  # Replace placeholders with actual values
+  sed -i "s|URL_PLACEHOLDER|${URL}|g" "$START_KIOSK"
+  sed -i "s|BROWSER_BIN_PLACEHOLDER|${BROWSER_BIN}|g" "$START_KIOSK"
   chmod +x "$START_KIOSK"
   chown "$PI_USER:$PI_USER" "$START_KIOSK"
 
@@ -450,8 +494,9 @@ X-GNOME-Autostart-enabled=true
 EOF
   chown -R "$PI_USER:$PI_USER" "$AUTOSTART_DIR"
 
-  # Emergency exit keybinding (Ctrl+Alt+X) for Openbox/LXDE (created if not present)
-  if [[ ! -f "$OPENBOX_RC" ]]; then
+  # Emergency exit keybinding (Ctrl+Alt+X) - conditional on display server
+  if [[ "${DISPLAY_SERVER}" == "x11" ]] && [[ ! -f "$OPENBOX_RC" ]]; then
+    # Openbox config for X11
     cat > "$OPENBOX_RC" <<'EOF'
 <openbox_config>
   <keyboard>
@@ -462,6 +507,25 @@ EOF
 </openbox_config>
 EOF
     chown -R "$PI_USER:$PI_USER" "$OPENBOX_DIR"
+    step "Openbox keybinding configured (X11)"
+  fi
+  
+  if [[ "${DISPLAY_SERVER}" == "wayland" ]]; then
+    # labwc config for Wayland
+    LABWC_DIR="$PI_HOME/.config/labwc"
+    install -d -m 755 "$LABWC_DIR"
+    cat > "$LABWC_DIR/rc.xml" <<'EOF'
+<?xml version="1.0"?>
+<labwc_config>
+  <keyboard>
+    <keybind key="C-A-x">
+      <action name="Execute" command="/bin/bash -lc '$HOME/exit-kiosk.sh'" />
+    </keybind>
+  </keyboard>
+</labwc_config>
+EOF
+    chown -R "$PI_USER:$PI_USER" "$LABWC_DIR"
+    step "labwc keybinding configured (Wayland)"
   fi
 
   ########################################################################
@@ -525,6 +589,11 @@ fi
 # ---------------------------------------------------------
 CURRENT_STEP="health check"
 if confirm_step "13" "Quick health check" "Try /api/health over http/https localhost (ignore if endpoint not present)"; then
+  step "Display server: ${DISPLAY_SERVER}"
+  if [[ "${DISPLAY_SERVER}" == "wayland" ]]; then
+    step "Note: Running on Wayland (Trixie). Openbox configs will be ignored, using labwc."
+  fi
+  
   if command -v curl >/dev/null 2>&1 && \
      (curl -sk "http://localhost:${PORT}/api/health" >/dev/null 2>&1 || \
       curl -sk "https://localhost:${PORT}/api/health" >/dev/null 2>&1); then
@@ -541,6 +610,7 @@ CURRENT_STEP="finish"
 if confirm_step "14" "Final notes & optional reboot" "Print where things were installed and offer to reboot into kiosk"; then
   echo "  • Service : ${SERVICE_NAME} — status with: sudo systemctl status ${SERVICE_NAME}"
   echo "  • App Dir : ${APP_DIR}"
+  echo "  • Display : ${DISPLAY_SERVER} ($([ "${DISPLAY_SERVER}" = "wayland" ] && echo "labwc/wayfire compositor" || echo "X11 with Openbox"))"
   echo "  • Kiosk   : Autostarts at login; emergency exit Ctrl+Alt+X"
   echo "  • Start/Stop kiosk manually: '${PI_HOME}/start-kiosk.sh' / '${PI_HOME}/exit-kiosk.sh'"
   echo "  • URL     : http(s)://localhost:${PORT}"
