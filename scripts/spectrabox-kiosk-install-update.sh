@@ -317,13 +317,32 @@ if confirm_step "9" "Configure Desktop autologin / GUI boot (Pi OS only)" "Use r
   # ---- ADDED: ensure LightDM points at a valid session on Bookworm/Trixie ----
   # Some Trixie systems end up with LightDM pointing at a non-existent session
   # (e.g. LXDE-pi-wayfire), which yields "Failed to start session".
+  # Auto-discover available sessions instead of hard-coding names.
   SESSION_NAME=""
-  if [[ -f /usr/share/wayland-sessions/rpd-labwc.desktop ]]; then
-    SESSION_NAME="rpd-labwc"
-  elif [[ -f /usr/share/wayland-sessions/wayfire-pi.desktop ]]; then
-    SESSION_NAME="wayfire-pi"
-  elif [[ -f /usr/share/xsessions/LXDE-pi.desktop ]]; then
-    SESSION_NAME="LXDE-pi"
+  
+  # First, try to find what session desktop files actually exist
+  step "Searching for available desktop sessions..."
+  
+  # Check Wayland sessions (preferred on Trixie)
+  if [[ -d /usr/share/wayland-sessions ]]; then
+    for desktop_file in /usr/share/wayland-sessions/*.desktop; do
+      if [[ -f "$desktop_file" ]]; then
+        SESSION_NAME="$(basename "$desktop_file" .desktop)"
+        step "Found Wayland session: ${SESSION_NAME}"
+        break
+      fi
+    done
+  fi
+  
+  # Fallback to X11 sessions if no Wayland found
+  if [[ -z "$SESSION_NAME" ]] && [[ -d /usr/share/xsessions ]]; then
+    for desktop_file in /usr/share/xsessions/*.desktop; do
+      if [[ -f "$desktop_file" ]]; then
+        SESSION_NAME="$(basename "$desktop_file" .desktop)"
+        step "Found X11 session: ${SESSION_NAME}"
+        break
+      fi
+    done
   fi
 
   if [[ -n "$SESSION_NAME" ]]; then
@@ -335,9 +354,12 @@ autologin-user-timeout=0
 user-session=${SESSION_NAME}
 autologin-session=${SESSION_NAME}
 EOF
-    ok "LightDM session forced to '${SESSION_NAME}' (autologin user ${PI_USER})"
+    ok "LightDM session configured: '${SESSION_NAME}' (autologin user ${PI_USER})"
   else
-    warn "No known Wayland/X11 session found; LightDM session not overridden."
+    warn "No desktop session files found in /usr/share/{wayland-sessions,xsessions}/"
+    warn "LightDM session not overridden - relying on system defaults."
+    warn "If autologin fails, you may need to install a desktop environment:"
+    warn "  sudo apt-get install --reinstall raspberrypi-ui-mods"
   fi
   # ---------------------------------------------------------------------------
 else
