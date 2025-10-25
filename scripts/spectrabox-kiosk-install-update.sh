@@ -306,28 +306,25 @@ fi
 # ---------------------------------------------------------
 CURRENT_STEP="desktop boot"
 if confirm_step "9" "Configure Desktop autologin / GUI boot (Pi OS only)" "Use raspi-config when available; otherwise set graphical.target on Debian"; then
-  if command -v raspi-config >/dev/null 2>&1; then
-    raspi-config nonint do_boot_behaviour B4 || true   # Desktop autologin
-    ok "raspi-config set to Desktop (autologin)"
-  else
-    warn "raspi-config not present (likely Debian). Skipping Pi-specific boot settings."
-    systemctl set-default graphical.target || true
-  fi
+  # CRITICAL FIX for Trixie: raspi-config B4 on Wayland systems may break the session
+  # If we're on Wayland, skip raspi-config entirely and configure LightDM directly
+  
+  # Set graphical target
+  systemctl set-default graphical.target 2>/dev/null || true
 
-  # ---- ADDED: ensure LightDM points at a valid session on Bookworm/Trixie ----
-  # Some Trixie systems end up with LightDM pointing at a non-existent session
-  # (e.g. LXDE-pi-wayfire), which yields "Failed to start session".
+  # ---- Detect and configure autologin session ----
   # Auto-discover available sessions instead of hard-coding names.
   SESSION_NAME=""
+  SESSION_TYPE="unknown"
   
-  # First, try to find what session desktop files actually exist
   step "Searching for available desktop sessions..."
   
   # Check Wayland sessions (preferred on Trixie)
   if [[ -d /usr/share/wayland-sessions ]]; then
     for desktop_file in /usr/share/wayland-sessions/*.desktop; do
-      if [[ -f "$desktop_file" ]]; then
+      if [[ -f "$desktop_file" ]] && [[ "$desktop_file" != *'*'* ]]; then
         SESSION_NAME="$(basename "$desktop_file" .desktop)"
+        SESSION_TYPE="wayland"
         step "Found Wayland session: ${SESSION_NAME}"
         break
       fi
@@ -337,8 +334,9 @@ if confirm_step "9" "Configure Desktop autologin / GUI boot (Pi OS only)" "Use r
   # Fallback to X11 sessions if no Wayland found
   if [[ -z "$SESSION_NAME" ]] && [[ -d /usr/share/xsessions ]]; then
     for desktop_file in /usr/share/xsessions/*.desktop; do
-      if [[ -f "$desktop_file" ]]; then
+      if [[ -f "$desktop_file" ]] && [[ "$desktop_file" != *'*'* ]]; then
         SESSION_NAME="$(basename "$desktop_file" .desktop)"
+        SESSION_TYPE="x11"
         step "Found X11 session: ${SESSION_NAME}"
         break
       fi
@@ -346,20 +344,43 @@ if confirm_step "9" "Configure Desktop autologin / GUI boot (Pi OS only)" "Use r
   fi
 
   if [[ -n "$SESSION_NAME" ]]; then
+    # Configure LightDM directly instead of relying on raspi-config
     install -d /etc/lightdm/lightdm.conf.d
-    cat > /etc/lightdm/lightdm.conf.d/50-spectrabox-session.conf <<EOF
+    cat > /etc/lightdm/lightdm.conf.d/50-spectrabox-autologin.conf <<EOF
 [Seat:*]
 autologin-user=${PI_USER}
 autologin-user-timeout=0
 user-session=${SESSION_NAME}
 autologin-session=${SESSION_NAME}
 EOF
-    ok "LightDM session configured: '${SESSION_NAME}' (autologin user ${PI_USER})"
+    ok "Autologin configured for ${SESSION_TYPE} session: '${SESSION_NAME}' (user: ${PI_USER})"
+    
+    # Only run raspi-config if we're on X11 (Bookworm)
+    if [[ "$SESSION_TYPE" == "x11" ]] && command -v raspi-config >/dev/null 2>&1; then
+      step "Running raspi-config for X11 system..."
+      raspi-config nonint do_boot_behaviour B4 2>/dev/null || true
+    else
+      step "Skipping raspi-config on Wayland system (LightDM configured directly)"
+    fi
   else
     warn "No desktop session files found in /usr/share/{wayland-sessions,xsessions}/"
-    warn "LightDM session not overridden - relying on system defaults."
-    warn "If autologin fails, you may need to install a desktop environment:"
-    warn "  sudo apt-get install --reinstall raspberrypi-ui-mods"
+    step "Attempting diagnosis..."
+    step "  Wayland dir exists: $([ -d /usr/share/wayland-sessions ] && echo 'YES' || echo 'NO')"
+    step "  X11 dir exists: $([ -d /usr/share/xsessions ] && echo 'YES' || echo 'NO')"
+    if [[ -d /usr/share/wayland-sessions ]]; then
+      step "  Wayland contents: $(ls /usr/share/wayland-sessions/ 2>&1 || echo 'empty or unreadable')"
+    fi
+    if [[ -d /usr/share/xsessions ]]; then
+      step "  X11 contents: $(ls /usr/share/xsessions/ 2>&1 || echo 'empty or unreadable')"
+    fi
+    warn "Cannot configure autologin without a valid session."
+    warn "The desktop may not start automatically after reboot."
+    
+    # Try raspi-config anyway as last resort
+    if command -v raspi-config >/dev/null 2>&1; then
+      warn "Trying raspi-config as fallback..."
+      raspi-config nonint do_boot_behaviour B4 2>/dev/null || true
+    fi
   fi
   # ---------------------------------------------------------------------------
 else
