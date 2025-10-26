@@ -131,8 +131,13 @@ if confirm_step "2" "Desktop Environment (Raspberry Pi OS)" "Ensure raspberrypi-
         apt-get remove -y pi-greeter || true
       fi
       
-      # Install with dpkg options to handle any remaining conflicts
-      apt-get install -y -o Dpkg::Options::="--force-overwrite" raspberrypi-ui-mods
+      # Install with dpkg options to handle conflicts and config files non-interactively
+      # --force-overwrite: Allow overwriting files from other packages
+      # --force-confnew: Use new config files without prompting
+      DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        -o Dpkg::Options::="--force-overwrite" \
+        -o Dpkg::Options::="--force-confnew" \
+        raspberrypi-ui-mods
       ok "Raspberry Pi Desktop installed"
     else
       step "Raspberry Pi Desktop already installed"
