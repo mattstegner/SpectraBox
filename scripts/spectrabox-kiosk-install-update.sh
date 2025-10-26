@@ -123,7 +123,16 @@ if confirm_step "2" "Desktop Environment (Raspberry Pi OS)" "Ensure raspberrypi-
     # Check if raspberrypi-ui-mods is installed
     if ! dpkg -l | grep -q '^ii.*raspberrypi-ui-mods'; then
       step "Installing Raspberry Pi Desktop Environment..."
-      apt-get install -y raspberrypi-ui-mods
+      
+      # Handle package conflict between raspberrypi-ui-mods and pi-greeter
+      # Both packages may provide the same greeter file on Trixie
+      if dpkg -l | grep -q '^ii.*pi-greeter'; then
+        step "Removing conflicting pi-greeter package first..."
+        apt-get remove -y pi-greeter || true
+      fi
+      
+      # Install with dpkg options to handle any remaining conflicts
+      apt-get install -y -o Dpkg::Options::="--force-overwrite" raspberrypi-ui-mods
       ok "Raspberry Pi Desktop installed"
     else
       step "Raspberry Pi Desktop already installed"
