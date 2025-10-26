@@ -116,8 +116,30 @@ else
 fi
 
 # ---------------------------------------------------------
+CURRENT_STEP="desktop environment"
+if confirm_step "2" "Desktop Environment (Raspberry Pi OS)" "Ensure raspberrypi-ui-mods is installed for full desktop support"; then
+  # Check if this is Raspberry Pi OS by looking for raspi-config
+  if command -v raspi-config >/dev/null 2>&1; then
+    # Check if raspberrypi-ui-mods is installed
+    if ! dpkg -l | grep -q '^ii.*raspberrypi-ui-mods'; then
+      step "Installing Raspberry Pi Desktop Environment..."
+      apt-get install -y raspberrypi-ui-mods
+      ok "Raspberry Pi Desktop installed"
+    else
+      step "Raspberry Pi Desktop already installed"
+      ok "Desktop environment verified"
+    fi
+  else
+    step "Not Raspberry Pi OS - skipping raspberrypi-ui-mods"
+    ok "Desktop environment check complete"
+  fi
+else
+  warn "Skipped desktop environment check"
+fi
+
+# ---------------------------------------------------------
 CURRENT_STEP="audio stack"
-if confirm_step "2" "Audio stack: PipeWire with PulseAudio compatibility" "Install PipeWire/WirePlumber with PulseAudio compatibility layer; add user to audio/video groups"; then
+if confirm_step "3" "Audio stack: PipeWire with PulseAudio compatibility" "Install PipeWire/WirePlumber with PulseAudio compatibility layer; add user to audio/video groups"; then
   # Install PipeWire with PulseAudio compatibility layer
   # This allows PipeWire to coexist with desktop components that depend on PulseAudio
   apt-get install -y --no-install-recommends \
@@ -140,7 +162,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="node install"
-if confirm_step "3" "Install Node.js ${NODE_MAJOR}.x (NodeSource if needed)" "Install or update Node to v${NODE_MAJOR}.x so the server can run"; then
+if confirm_step "4" "Install Node.js ${NODE_MAJOR}.x (NodeSource if needed)" "Install or update Node to v${NODE_MAJOR}.x so the server can run"; then
   if ! command -v node >/dev/null 2>&1 || ! node -v | grep -qE "^v${NODE_MAJOR}\."; then
     curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
     apt-get install -y nodejs
@@ -154,7 +176,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="browser install"
-if confirm_step "4" "Choose and install browser (Chromium/Firefox fallback)" "Detect correct package (chromium / chromium-browser / firefox-esr) and install it"; then
+if confirm_step "5" "Choose and install browser (Chromium/Firefox fallback)" "Detect correct package (chromium / chromium-browser / firefox-esr) and install it"; then
   # package detection (chromium vs chromium-browser; firefox-esr fallback)
   pkg_exists() { apt-cache show "$1" 2>/dev/null | grep -q '^Package:'; }
 
@@ -196,7 +218,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="clone repo"
-if confirm_step "5" "Clone or update SpectraBox repo" "Clone fresh to ~/spectrabox or git pull if it already exists"; then
+if confirm_step "6" "Clone or update SpectraBox repo" "Clone fresh to ~/spectrabox or git pull if it already exists"; then
   if [[ -d "$APP_DIR/.git" ]]; then
     step "Repo exists, pulling latest..."
     sudo -u "$PI_USER" git -C "$APP_DIR" pull --ff-only
@@ -211,7 +233,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="npm install"
-if confirm_step "6" "Install app dependencies (production)" "Run npm ci/install with production deps only"; then
+if confirm_step "7" "Install app dependencies (production)" "Run npm ci/install with production deps only"; then
   cd "$APP_DIR"
   if [[ -f package-lock.json ]]; then
     sudo -u "$PI_USER" npm ci --omit=dev
@@ -225,7 +247,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="TLS certs"
-if confirm_step "7" "Generate HTTPS certs (for mic permission persistence)" "Use repo generator if present, otherwise make a self-signed localhost cert"; then
+if confirm_step "8" "Generate HTTPS certs (for mic permission persistence)" "Use repo generator if present, otherwise make a self-signed localhost cert"; then
   CERT_DIR="$APP_DIR/certs"
   mkdir -p "$CERT_DIR"
   chown -R "$PI_USER:$PI_USER" "$CERT_DIR"
@@ -250,7 +272,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="systemd service"
-if confirm_step "8" "Create systemd service for SpectraBox" "Create/enable spectrabox.service to run the app on boot"; then
+if confirm_step "9" "Create systemd service for SpectraBox" "Create/enable spectrabox.service to run the app on boot"; then
   # Prefer npm start if defined; fallback to server.js
   EXEC_START=""
   if [[ -f "$APP_DIR/package.json" ]] && jq -e '.scripts.start' "$APP_DIR/package.json" >/dev/null 2>&1; then
@@ -305,7 +327,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="desktop boot"
-if confirm_step "9" "Configure Desktop autologin / GUI boot (Pi OS only)" "Use raspi-config when available; otherwise set graphical.target on Debian"; then
+if confirm_step "10" "Configure Desktop autologin / GUI boot (Pi OS only)" "Use raspi-config when available; otherwise set graphical.target on Debian"; then
   # CRITICAL FIX for Trixie: raspi-config B4 on Wayland systems may break the session
   # If we're on Wayland, skip raspi-config entirely and configure LightDM directly
   
@@ -313,34 +335,60 @@ if confirm_step "9" "Configure Desktop autologin / GUI boot (Pi OS only)" "Use r
   systemctl set-default graphical.target 2>/dev/null || true
 
   # ---- Detect and configure autologin session ----
-  # Auto-discover available sessions instead of hard-coding names.
+  # Auto-discover available sessions with priority for RPD (Raspberry Pi Desktop) sessions
   SESSION_NAME=""
   SESSION_TYPE="unknown"
   
   step "Searching for available desktop sessions..."
   
   # Check Wayland sessions (preferred on Trixie)
+  # PRIORITY 1: Look for RPD (Raspberry Pi Desktop) Wayland sessions first
   if [[ -d /usr/share/wayland-sessions ]]; then
-    for desktop_file in /usr/share/wayland-sessions/*.desktop; do
+    for desktop_file in /usr/share/wayland-sessions/rpd-*.desktop; do
       if [[ -f "$desktop_file" ]] && [[ "$desktop_file" != *'*'* ]]; then
         SESSION_NAME="$(basename "$desktop_file" .desktop)"
         SESSION_TYPE="wayland"
-        step "Found Wayland session: ${SESSION_NAME}"
+        step "Found RPD Wayland session: ${SESSION_NAME}"
         break
       fi
     done
+    
+    # PRIORITY 2: Fallback to any other Wayland session
+    if [[ -z "$SESSION_NAME" ]]; then
+      for desktop_file in /usr/share/wayland-sessions/*.desktop; do
+        if [[ -f "$desktop_file" ]] && [[ "$desktop_file" != *'*'* ]]; then
+          SESSION_NAME="$(basename "$desktop_file" .desktop)"
+          SESSION_TYPE="wayland"
+          step "Found Wayland session: ${SESSION_NAME}"
+          break
+        fi
+      done
+    fi
   fi
   
-  # Fallback to X11 sessions if no Wayland found
+  # PRIORITY 3: Fallback to X11 sessions if no Wayland found
   if [[ -z "$SESSION_NAME" ]] && [[ -d /usr/share/xsessions ]]; then
-    for desktop_file in /usr/share/xsessions/*.desktop; do
+    # First try RPD X11 sessions
+    for desktop_file in /usr/share/xsessions/rpd-*.desktop /usr/share/xsessions/LXDE-pi*.desktop; do
       if [[ -f "$desktop_file" ]] && [[ "$desktop_file" != *'*'* ]]; then
         SESSION_NAME="$(basename "$desktop_file" .desktop)"
         SESSION_TYPE="x11"
-        step "Found X11 session: ${SESSION_NAME}"
+        step "Found RPD X11 session: ${SESSION_NAME}"
         break
       fi
     done
+    
+    # Then any other X11 session (skip lightdm-xsession as it's generic)
+    if [[ -z "$SESSION_NAME" ]]; then
+      for desktop_file in /usr/share/xsessions/*.desktop; do
+        if [[ -f "$desktop_file" ]] && [[ "$desktop_file" != *'*'* ]] && [[ "$desktop_file" != *"lightdm-xsession"* ]]; then
+          SESSION_NAME="$(basename "$desktop_file" .desktop)"
+          SESSION_TYPE="x11"
+          step "Found X11 session: ${SESSION_NAME}"
+          break
+        fi
+      done
+    fi
   fi
 
   if [[ -n "$SESSION_NAME" ]]; then
@@ -389,7 +437,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="browser policy"
-if confirm_step "10" "Chromium mic policy for localhost" "Install managed policy so Chromium auto-allows microphone for http/https localhost"; then
+if confirm_step "11" "Chromium mic policy for localhost" "Install managed policy so Chromium auto-allows microphone for http/https localhost"; then
   install -d /etc/chromium/policies/managed /etc/opt/chrome/policies/managed
   cat >/etc/chromium/policies/managed/kiosk-mic.json <<'JSON'
 {
@@ -409,7 +457,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="kiosk launcher"
-if confirm_step "11" "Create kiosk launcher & autostart entry" "Write start/exit scripts, autostart .desktop, Openbox hotkey (Ctrl+Alt+X)"; then
+if confirm_step "12" "Create kiosk launcher & autostart entry" "Write start/exit scripts, autostart .desktop, Openbox hotkey (Ctrl+Alt+X)"; then
   START_KIOSK="$PI_HOME/start-kiosk.sh"
   EXIT_KIOSK="$PI_HOME/exit-kiosk.sh"
   AUTOSTART_DIR="$PI_HOME/.config/autostart"
@@ -620,7 +668,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="permissions"
-if confirm_step "12" "Permissions & logs" "Fix ownership of app dir, create /var/log/spectrabox"; then
+if confirm_step "13" "Permissions & logs" "Fix ownership of app dir, create /var/log/spectrabox"; then
   mkdir -p /var/log/spectrabox
   chown "$PI_USER:$PI_USER" /var/log/spectrabox
   chown -R "$PI_USER:$PI_USER" "$APP_DIR"
@@ -631,7 +679,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="health check"
-if confirm_step "13" "Quick health check" "Try /api/health over http/https localhost (ignore if endpoint not present)"; then
+if confirm_step "14" "Quick health check" "Try /api/health over http/https localhost (ignore if endpoint not present)"; then
   step "Display server: ${DISPLAY_SERVER}"
   if [[ "${DISPLAY_SERVER}" == "wayland" ]]; then
     step "Note: Running on Wayland (Trixie). Openbox configs will be ignored, using labwc."
@@ -650,7 +698,7 @@ fi
 
 # ---------------------------------------------------------
 CURRENT_STEP="finish"
-if confirm_step "14" "Final notes & optional reboot" "Print where things were installed and offer to reboot into kiosk"; then
+if confirm_step "15" "Final notes & optional reboot" "Print where things were installed and offer to reboot into kiosk"; then
   echo "  • Service : ${SERVICE_NAME} — status with: sudo systemctl status ${SERVICE_NAME}"
   echo "  • App Dir : ${APP_DIR}"
   echo "  • Display : ${DISPLAY_SERVER} ($([ "${DISPLAY_SERVER}" = "wayland" ] && echo "labwc/wayfire compositor" || echo "X11 with Openbox"))"
