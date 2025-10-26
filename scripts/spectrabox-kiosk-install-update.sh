@@ -357,8 +357,9 @@ if confirm_step "10" "Configure Desktop autologin / GUI boot (Pi OS only)" "Use 
   
   # Check Wayland sessions (preferred on Trixie)
   # PRIORITY 1: Look for RPD (Raspberry Pi Desktop) Wayland sessions first
+  # Note: RPD sessions are named LXDE-pi-* or rpd-* depending on the version
   if [[ -d /usr/share/wayland-sessions ]]; then
-    for desktop_file in /usr/share/wayland-sessions/rpd-*.desktop; do
+    for desktop_file in /usr/share/wayland-sessions/LXDE-pi-*.desktop /usr/share/wayland-sessions/rpd-*.desktop; do
       if [[ -f "$desktop_file" ]] && [[ "$desktop_file" != *'*'* ]]; then
         SESSION_NAME="$(basename "$desktop_file" .desktop)"
         SESSION_TYPE="wayland"
