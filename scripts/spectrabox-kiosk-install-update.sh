@@ -407,12 +407,30 @@ if confirm_step "10" "Configure Desktop autologin / GUI boot (Pi OS only)" "Use 
   fi
 
   if [[ -n "$SESSION_NAME" ]]; then
-    # Configure LightDM directly instead of relying on raspi-config
-    # Use 99- prefix to ensure our settings override the main lightdm.conf
-    install -d /etc/lightdm/lightdm.conf.d
+    # Configure LightDM autologin
+    # On Trixie, config.d files are ignored - we must modify the main config directly
     
-    # Remove old config file if it exists (migration from 50- to 99-)
+    # Step 1: Add user to autologin group (required for passwordless autologin)
+    if ! groups "$PI_USER" | grep -q autologin; then
+      step "Adding ${PI_USER} to autologin group..."
+      groupadd -f autologin
+      usermod -aG autologin "$PI_USER"
+    fi
+    
+    # Step 2: Modify the main LightDM config file directly
+    # Replace the incorrect rpd-labwc with the actual session name
+    if [[ -f /etc/lightdm/lightdm.conf ]]; then
+      step "Updating main LightDM config with correct session: ${SESSION_NAME}"
+      sed -i "s/^user-session=.*/user-session=${SESSION_NAME}/" /etc/lightdm/lightdm.conf
+      sed -i "s/^autologin-session=.*/autologin-session=${SESSION_NAME}/" /etc/lightdm/lightdm.conf
+      sed -i "s/^#*autologin-user=.*/autologin-user=${PI_USER}/" /etc/lightdm/lightdm.conf
+      sed -i "s/^#*autologin-user-timeout=.*/autologin-user-timeout=0/" /etc/lightdm/lightdm.conf
+    fi
+    
+    # Step 3: Also create config.d file as backup (for systems where it works)
+    install -d /etc/lightdm/lightdm.conf.d
     rm -f /etc/lightdm/lightdm.conf.d/50-spectrabox-autologin.conf
+    rm -f /etc/lightdm/lightdm.conf.d/99-spectrabox-autologin.conf
     
     cat > /etc/lightdm/lightdm.conf.d/99-spectrabox-autologin.conf <<EOF
 [Seat:*]
@@ -420,8 +438,8 @@ autologin-user=${PI_USER}
 autologin-user-timeout=0
 user-session=${SESSION_NAME}
 autologin-session=${SESSION_NAME}
-greeter-session=
 EOF
+    
     ok "Autologin configured for ${SESSION_TYPE} session: '${SESSION_NAME}' (user: ${PI_USER})"
     
     # Only run raspi-config if we're on X11 (Bookworm)
