@@ -408,13 +408,19 @@ if confirm_step "10" "Configure Desktop autologin / GUI boot (Pi OS only)" "Use 
 
   if [[ -n "$SESSION_NAME" ]]; then
     # Configure LightDM directly instead of relying on raspi-config
+    # Use 99- prefix to ensure our settings override the main lightdm.conf
     install -d /etc/lightdm/lightdm.conf.d
-    cat > /etc/lightdm/lightdm.conf.d/50-spectrabox-autologin.conf <<EOF
+    
+    # Remove old config file if it exists (migration from 50- to 99-)
+    rm -f /etc/lightdm/lightdm.conf.d/50-spectrabox-autologin.conf
+    
+    cat > /etc/lightdm/lightdm.conf.d/99-spectrabox-autologin.conf <<EOF
 [Seat:*]
 autologin-user=${PI_USER}
 autologin-user-timeout=0
 user-session=${SESSION_NAME}
 autologin-session=${SESSION_NAME}
+greeter-session=
 EOF
     ok "Autologin configured for ${SESSION_TYPE} session: '${SESSION_NAME}' (user: ${PI_USER})"
     
