@@ -6,11 +6,16 @@
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Initialize components
+  initializeComponents();
+  
   // Check server health on page load
   checkServerHealth();
     
-  // Load audio devices on page load
-  loadAudioDevices();
+  // Load audio devices on page load using component
+  if (window.components && window.components.audioDevice) {
+    await window.components.audioDevice.loadDevices();
+  }
   
   // Settings are now handled by SettingsManager in settings-persistence.js
   // await loadAndApplyUISettings();
@@ -24,7 +29,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Add event listener for refresh devices button
   const refreshBtn = document.getElementById('refreshDevicesBtn');
   if (refreshBtn) {
-    refreshBtn.addEventListener('click', loadAudioDevices);
+    refreshBtn.addEventListener('click', async () => {
+      if (window.components && window.components.audioDevice) {
+        await window.components.audioDevice.loadDevices();
+      }
+    });
   }
   
   // Add event listener for refresh network info button
@@ -33,25 +42,55 @@ document.addEventListener('DOMContentLoaded', async () => {
     refreshNetworkBtn.addEventListener('click', displayNetworkInfo);
   }
   
-  // Add event listener for settings tabs to load network info when Network tab is clicked
-  const settingsTabs = document.querySelectorAll('.settings-tab');
-  settingsTabs.forEach(tab => {
-    tab.addEventListener('click', (e) => {
-      const tabName = e.target.getAttribute('data-tab');
+  // Settings panel tab switching is now handled by SettingsPanelComponent
+  // But we still need to handle network/server tab activation
+  if (window.components && window.components.settingsPanel) {
+    window.components.settingsPanel.container.addEventListener('tabChanged', (e) => {
+      const tabName = e.detail.tab;
       if (tabName === 'network') {
         // Load network info when Network tab is opened
-        setTimeout(displayNetworkInfo, 100); // Small delay to ensure tab is visible
+        setTimeout(displayNetworkInfo, 100);
       } else if (tabName === 'server') {
         // Initialize server manager when Server tab is opened
         setTimeout(() => {
           if (window.serverManager && !window.serverManager.isInitialized) {
             window.serverManager.initialize();
           }
-        }, 100); // Small delay to ensure tab is visible
+        }, 100);
       }
     });
-  });
+  }
 });
+
+/**
+ * Initialize all UI components
+ */
+function initializeComponents() {
+  // Initialize settings panel component
+  const settingsPanel = new SettingsPanelComponent(document.getElementById('settingsPanel'));
+  settingsPanel.initialize();
+  
+  // Initialize audio device component
+  const audioDevice = new AudioDeviceComponent(
+    document.getElementById('audioDeviceSelect'),
+    document.getElementById('defaultDeviceIndicator')
+  );
+  
+  // Initialize update notification component
+  const updateNotification = new UpdateNotificationComponent();
+  
+  // Store components globally for access by other modules
+  // Note: LegendComponent and NetworkInfoComponent not used - 
+  // They caused issues with the complex legend visibility state management
+  // Legacy implementation works better for these cases
+  window.components = {
+    settingsPanel,
+    audioDevice,
+    updateNotification
+  };
+  
+  console.log('UI components initialized');
+}
 
 /**
  * Check if the server is running and healthy
@@ -78,8 +117,15 @@ function checkServerHealth() {
 
 /**
  * Load and populate the audio device selector
+ * Now using AudioDeviceComponent
  */
 async function loadAudioDevices() {
+  if (window.components && window.components.audioDevice) {
+    await window.components.audioDevice.loadDevices();
+    return;
+  }
+  
+  // Fallback to legacy implementation if component not available
   const deviceSelect = document.getElementById('audioDeviceSelect');
   const defaultIndicator = document.getElementById('defaultDeviceIndicator');
     
@@ -320,6 +366,8 @@ function getServerConfig() {
  * Display network accessibility information in the Network tab
  */
 function displayNetworkInfo() {
+  // Use the working legacy implementation
+  // (NetworkInfoComponent was designed for simpler use cases)
   Promise.all([getServerConfig(), getSystemInfo()]).then(([config, systemInfo]) => {
     updateNetworkStatus(config);
     updateServerConfig(config);

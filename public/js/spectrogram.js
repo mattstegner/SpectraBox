@@ -740,6 +740,7 @@ class StereoSpectrumAnalyzer {
      * Shows or hides the white overlap indicator in the legend
      */
   updateLegendVisibility() {
+    // Use direct DOM manipulation (LegendComponent caused issues with visibility state)
     const overlapLegendItem = document.getElementById('overlapLegendItem');
     if (overlapLegendItem) {
       overlapLegendItem.style.display = this.overlappingEnabled ? 'flex' : 'none';
@@ -767,22 +768,37 @@ class StereoSpectrumAnalyzer {
      * @param {string} channelType - 'Mono' or 'Stereo'
      */
   updateChannelIndicator(channelType) {
+    // Use direct DOM manipulation (LegendComponent not used for legend state)
     const channelIndicator = document.getElementById('channelIndicator');
     const channelIndicatorText = document.getElementById('channelIndicatorText');
-    const leftChannelItem = document.querySelector('.legend-item:nth-child(2)'); // Left Channel item
-    const rightChannelItem = document.querySelector('.legend-item:nth-child(3)'); // Right Channel item
+    // Get the legend container and query within it for more specificity
+    const legendContainer = document.getElementById('legend');
+    const leftChannelItem = legendContainer ? legendContainer.querySelector('.legend-item:nth-child(2)') : null;
+    const rightChannelItem = legendContainer ? legendContainer.querySelector('.legend-item:nth-child(3)') : null;
         
     if (channelType === 'Mono') {
       // Show mono indicator, hide left/right channel indicators
       if (channelIndicator) channelIndicator.style.display = 'flex';
       if (channelIndicatorText) channelIndicatorText.textContent = 'Mono';
-      if (leftChannelItem) leftChannelItem.style.display = 'none';
-      if (rightChannelItem) rightChannelItem.style.display = 'none';
+      if (leftChannelItem) {
+        leftChannelItem.style.display = 'none';
+        console.log('Hiding left channel item for Mono mode');
+      }
+      if (rightChannelItem) {
+        rightChannelItem.style.display = 'none';
+        console.log('Hiding right channel item for Mono mode');
+      }
     } else {
       // Hide mono indicator, show left/right channel indicators
       if (channelIndicator) channelIndicator.style.display = 'none';
-      if (leftChannelItem) leftChannelItem.style.display = 'flex';
-      if (rightChannelItem) rightChannelItem.style.display = 'flex';
+      if (leftChannelItem) {
+        leftChannelItem.style.display = 'flex';
+        console.log('Showing left channel item for Stereo mode');
+      }
+      if (rightChannelItem) {
+        rightChannelItem.style.display = 'flex';
+        console.log('Showing right channel item for Stereo mode');
+      }
     }
   }
     
@@ -1778,6 +1794,34 @@ class StereoSpectrumAnalyzer {
   drawSpectrumSimple(dataLeft, dataRight) {
     const sampleRate = this.audioContext.sampleRate;
         
+    // === CHECK IF INPUT IS MONO ===
+    if (!this.isStereoInput) {
+      // === DRAW MONO CHANNEL (ORANGE/YELLOW) ===
+      this.ctx.strokeStyle = '#ffaa00';  // Use orange color for mono (matches legend)
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      let isFirstPoint = true;
+          
+      for (let i = 0; i < dataLeft.length; i++) {
+        const frequency = (i * sampleRate) / (2 * dataLeft.length);
+        if (frequency < this.minFreq || frequency > this.maxFreq) continue;
+              
+        const x = this.plotLeft + (Math.log10(frequency / this.minFreq) / Math.log10(this.maxFreq / this.minFreq)) * this.plotWidth;
+        const dbValue = Math.max(this.adjustableMinDB, Math.min(this.maxDB, dataLeft[i] + this.amplitudeCalibrationDB));
+        const dbRange = this.maxDB - this.adjustableMinDB;
+        const y = this.plotBottom - ((dbValue - this.adjustableMinDB) / dbRange) * this.plotHeight;
+              
+        if (isFirstPoint) {
+          this.ctx.moveTo(x, y);
+          isFirstPoint = false;
+        } else {
+          this.ctx.lineTo(x, y);
+        }
+      }
+      this.ctx.stroke();
+      return;  // Exit early for mono
+    }
+        
     // === DRAW LEFT CHANNEL (GREEN) ===
     this.ctx.strokeStyle = '#00ff00';
     this.ctx.lineWidth = 2;
@@ -1840,6 +1884,13 @@ class StereoSpectrumAnalyzer {
      * @param {Float32Array} dataRight - FFT frequency data for right channel (in dB)
      */
   drawSpectrumWithOverlapping(dataLeft, dataRight) {
+    // === FOR MONO INPUT, FALLBACK TO SIMPLE DRAWING ===
+    // No point in overlap detection when left and right are identical
+    if (!this.isStereoInput) {
+      this.drawSpectrumSimple(dataLeft, dataRight);
+      return;
+    }
+        
     const sampleRate = this.audioContext.sampleRate;          // Get sample rate (44100 Hz)
         
     // === COLLECT ALL POINTS WITH OVERLAP INFORMATION ===
@@ -1895,6 +1946,28 @@ class StereoSpectrumAnalyzer {
     // === PREPARE PIXEL-BASED DATA ===
     const pixelData = this.generatePixelAveragedData(dataLeft, dataRight, sampleRate);
         
+    // === CHECK IF INPUT IS MONO ===
+    if (!this.isStereoInput) {
+      // === DRAW MONO CHANNEL (ORANGE/YELLOW) ===
+      this.ctx.strokeStyle = '#ffaa00';  // Use orange color for mono (matches legend)
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      let isFirstPoint = true;
+          
+      for (let i = 0; i < pixelData.length; i++) {
+        const point = pixelData[i];
+              
+        if (isFirstPoint) {
+          this.ctx.moveTo(point.x, point.yLeft);  // Use left channel data (same as right for mono)
+          isFirstPoint = false;
+        } else {
+          this.ctx.lineTo(point.x, point.yLeft);
+        }
+      }
+      this.ctx.stroke();
+      return;  // Exit early for mono
+    }
+        
     // === DRAW LEFT CHANNEL (GREEN) ===
     this.ctx.strokeStyle = '#00ff00';
     this.ctx.lineWidth = 2;
@@ -1939,6 +2012,13 @@ class StereoSpectrumAnalyzer {
      * @param {Float32Array} dataRight - FFT frequency data for right channel (in dB)
      */
   drawSpectrumPixelAveragedWithOverlapping(dataLeft, dataRight) {
+    // === FOR MONO INPUT, FALLBACK TO SIMPLE DRAWING ===
+    // No point in overlap detection when left and right are identical
+    if (!this.isStereoInput) {
+      this.drawSpectrumPixelAveragedSimple(dataLeft, dataRight);
+      return;
+    }
+        
     const sampleRate = this.audioContext.sampleRate;
         
     // === PREPARE PIXEL-BASED DATA WITH OVERLAP INFORMATION ===

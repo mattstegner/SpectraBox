@@ -186,6 +186,25 @@ class ServerManager {
    * Create update notification overlay for better user visibility
    */
   createUpdateNotificationOverlay(data) {
+    // Use UpdateNotificationComponent if available
+    if (window.components && window.components.updateNotification) {
+      const component = window.components.updateNotification;
+      
+      // If already visible, just update progress
+      if (component.isVisible()) {
+        component.updateProgress(data.progress || 0, data.message);
+      } else {
+        // Show new notification
+        component.show({
+          status: data.status,
+          message: data.message,
+          progress: data.progress || 0
+        });
+      }
+      return;
+    }
+
+    // Fallback to legacy implementation
     // Remove existing overlay if present
     const existingOverlay = document.getElementById('updateNotificationOverlay');
     if (existingOverlay) {

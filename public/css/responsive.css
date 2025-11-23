@@ -1,0 +1,49 @@
+/**
+ * Responsive Styles - Media queries for different screen sizes
+ */
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 1200px) {
+  .settings-panel {
+    width: min(780px, calc(100vw - 20px)) !important;
+  }
+  .settings-tab {
+    font-size: 10px;
+    padding: 8px 6px;
+  }
+}
+
+@media (max-width: 800px) {
+  .settings-panel {
+    width: calc(100vw - 20px) !important;
+    left: 10px;
+    right: 10px;
+  }
+  .settings-tab {
+    font-size: 9px;
+    padding: 6px 4px;
+  }
+  .settings-content {
+    padding: 8px;
+  }
+  .setting-item {
+    margin-bottom: 8px;
+  }
+  .setting-item label {
+    font-size: 11px;
+  }
+}
+
+@media (max-height: 600px) {
+  .settings-panel {
+    max-height: calc(100vh - 50px);
+  }
+  .settings-content {
+    max-height: calc(100vh - 100px);
+    padding: 8px;
+  }
+  .setting-item {
+    margin-bottom: 6px;
+  }
+}
+
