@@ -1955,23 +1955,74 @@ async function prepareGracefulShutdown(updateLogger, updateAttempt) {
  * Perform graceful shutdown
  */
 async function performGracefulShutdown(updateLogger, updateAttempt) {
+  const SHUTDOWN_TIMEOUT_MS = 10000; // 10 second timeout for graceful shutdown
+  
   try {
     updateLogger.info('Performing graceful server shutdown');
+    
+    // First, close all WebSocket connections to prevent server.close() from hanging
+    const wss = global.spectraboxWebSocketServer;
+    if (wss) {
+      updateLogger.info('Closing WebSocket connections', { clientCount: wss.clients.size });
+      
+      // Notify all clients about the shutdown before closing
+      const shutdownMessage = JSON.stringify({
+        type: 'serverShutdown',
+        message: 'Server is shutting down for update',
+        timestamp: new Date().toISOString()
+      });
+      
+      wss.clients.forEach((client) => {
+        try {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(shutdownMessage);
+            client.close(1001, 'Server shutting down for update');
+          }
+        } catch (wsError) {
+          updateLogger.warn('Error closing WebSocket client', { error: wsError.message });
+        }
+      });
+      
+      // Give WebSocket clients a moment to receive the close message
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      updateLogger.info('WebSocket connections closed');
+    }
     
     // Get reference to the current server instance
     const currentServer = global.spectraboxServer;
     if (currentServer) {
-      // Close server to new connections
-      await new Promise((resolve) => {
+      // Close server to new connections with timeout
+      updateLogger.info('Closing HTTP/HTTPS server');
+      
+      const serverClosePromise = new Promise((resolve) => {
         currentServer.close(() => {
           updateLogger.info('Server closed to new connections');
-          resolve();
+          resolve('closed');
         });
       });
-
-      // Give existing connections time to finish
-      updateLogger.info('Waiting for existing connections to close');
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const timeoutPromise = new Promise((resolve) => {
+        setTimeout(() => {
+          updateLogger.warn('Server close timed out, proceeding anyway');
+          resolve('timeout');
+        }, SHUTDOWN_TIMEOUT_MS);
+      });
+      
+      // Wait for either server close or timeout
+      const result = await Promise.race([serverClosePromise, timeoutPromise]);
+      
+      if (result === 'timeout') {
+        updateLogger.warn('Server did not close gracefully within timeout, forcing continuation');
+        // Destroy any remaining connections
+        if (currentServer.closeAllConnections) {
+          currentServer.closeAllConnections();
+          updateLogger.info('Forced close of remaining connections');
+        }
+      }
+      
+      // Brief pause to let things settle
+      await new Promise(resolve => setTimeout(resolve, 1000));
     } else {
       updateLogger.warn('No server instance found for graceful shutdown');
     }
