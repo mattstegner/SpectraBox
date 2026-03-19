@@ -38,6 +38,8 @@ MIN_NODE_MAJOR="20"
 NODE_FALLBACK_MAJOR="20"
 MEM_MAX="512M"
 CPU_QUOTA="80%"
+NODE_BIN=""
+NPM_BIN=""
 
 OS_ID="unknown"
 OS_CODENAME="unknown"
@@ -204,6 +206,11 @@ node_major_from_apt_candidate() {
   else
     echo "$major"
   fi
+}
+
+resolve_node_binaries() {
+  NODE_BIN="$(command -v node || true)"
+  NPM_BIN="$(command -v npm || true)"
 }
 
 detect_display_mode() {
@@ -422,8 +429,16 @@ if confirm_step "4" "Node.js runtime" "Ensure Node.js >= ${MIN_NODE_MAJOR} (pref
     fi
   fi
 
+  resolve_node_binaries
+  if [[ -z "$NODE_BIN" || -z "$NPM_BIN" ]]; then
+    err "Unable to resolve absolute node/npm paths after installation"
+    exit 1
+  fi
+
   step "Node: $(node -v 2>/dev/null || echo 'not found')"
   step "npm : $(npm -v 2>/dev/null || echo 'not found')"
+  step "node bin: ${NODE_BIN}"
+  step "npm bin : ${NPM_BIN}"
   ok "Node.js runtime ready"
 else
   warn "Skipped Node.js setup"
@@ -490,10 +505,15 @@ fi
 CURRENT_STEP="npm install"
 if confirm_step "7" "Install app dependencies" "Run npm ci/install with production dependencies"; then
   cd "$APP_DIR"
+  resolve_node_binaries
+  if [[ -z "$NPM_BIN" ]]; then
+    err "npm binary not found in PATH"
+    exit 1
+  fi
   if [[ -f package-lock.json ]]; then
-    sudo -u "$PI_USER" npm ci --omit=dev
+    sudo -u "$PI_USER" "$NPM_BIN" ci --omit=dev
   else
-    sudo -u "$PI_USER" npm install --omit=dev
+    sudo -u "$PI_USER" "$NPM_BIN" install --omit=dev
   fi
   ok "App dependencies installed"
 else
@@ -509,7 +529,12 @@ if confirm_step "8" "Generate HTTPS certs" "Use repo generator or OpenSSL fallba
 
   if [[ -f "$APP_DIR/generate-ssl.js" ]]; then
     step "Running generate-ssl.js"
-    sudo -u "$PI_USER" node "$APP_DIR/generate-ssl.js" || warn "generate-ssl.js failed; using OpenSSL fallback"
+    resolve_node_binaries
+    if [[ -z "$NODE_BIN" ]]; then
+      warn "node binary not found; skipping generate-ssl.js and using OpenSSL fallback"
+    else
+      sudo -u "$PI_USER" "$NODE_BIN" "$APP_DIR/generate-ssl.js" || warn "generate-ssl.js failed; using OpenSSL fallback"
+    fi
   fi
 
   if [[ ! -f "$SSL_DIR/key.pem" || ! -f "$SSL_DIR/cert.pem" ]]; then
@@ -533,11 +558,20 @@ fi
 # ---------------------------------------------------------
 CURRENT_STEP="systemd service"
 if confirm_step "9" "Create systemd service" "Create/enable spectrabox service"; then
+  resolve_node_binaries
   EXEC_START=""
   if [[ -f "$APP_DIR/package.json" ]] && jq -e '.scripts.start' "$APP_DIR/package.json" >/dev/null 2>&1; then
-    EXEC_START="/usr/bin/npm start --silent"
+    if [[ -z "$NPM_BIN" ]]; then
+      err "npm binary not found; cannot create npm-based service"
+      exit 1
+    fi
+    EXEC_START="${NPM_BIN} start --silent"
   elif [[ -f "$APP_DIR/server.js" ]]; then
-    EXEC_START="/usr/bin/node ${APP_DIR}/server.js"
+    if [[ -z "$NODE_BIN" ]]; then
+      err "node binary not found; cannot create node-based service"
+      exit 1
+    fi
+    EXEC_START="${NODE_BIN} ${APP_DIR}/server.js"
   else
     err "No start script or server.js found"
     exit 1
