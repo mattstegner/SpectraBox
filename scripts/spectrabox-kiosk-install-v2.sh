@@ -360,8 +360,14 @@ if [[ "$SKIP_DESKTOP" -eq 1 ]]; then
 elif confirm_step "2" "Desktop environment (Pi OS)" "Ensure Raspberry Pi desktop packages are present"; then
   if [[ "$IS_PI_OS" -eq 1 ]]; then
     if ! dpkg -l | grep -q '^ii[[:space:]].*raspberrypi-ui-mods'; then
-      step "Installing raspberrypi-ui-mods"
-      apt-get install -y raspberrypi-ui-mods
+      if dpkg -l | grep -q '^ii[[:space:]].*pi-greeter'; then
+        warn "pi-greeter is already installed; skipping raspberrypi-ui-mods to avoid package conflict"
+      else
+        step "Installing raspberrypi-ui-mods (best effort)"
+        if ! apt-get install -y raspberrypi-ui-mods; then
+          warn "raspberrypi-ui-mods installation failed; continuing because this package is optional for kiosk setup"
+        fi
+      fi
     else
       step "raspberrypi-ui-mods already installed"
     fi
