@@ -211,6 +211,24 @@ node_major_from_apt_candidate() {
 resolve_node_binaries() {
   NODE_BIN="$(command -v node || true)"
   NPM_BIN="$(command -v npm || true)"
+
+  if [[ -z "$NODE_BIN" ]]; then
+    for candidate in /usr/bin/node /usr/local/bin/node; do
+      if [[ -x "$candidate" ]]; then
+        NODE_BIN="$candidate"
+        break
+      fi
+    done
+  fi
+
+  if [[ -z "$NPM_BIN" ]]; then
+    for candidate in /usr/bin/npm /usr/local/bin/npm; do
+      if [[ -x "$candidate" ]]; then
+        NPM_BIN="$candidate"
+        break
+      fi
+    done
+  fi
 }
 
 detect_display_mode() {
@@ -407,7 +425,14 @@ fi
 CURRENT_STEP="node runtime"
 if confirm_step "4" "Node.js runtime" "Ensure Node.js >= ${MIN_NODE_MAJOR} (prefer distro, fallback NodeSource)"; then
   current_major="$(node_major_from_bin)"
-  if [[ "$current_major" -ge "$MIN_NODE_MAJOR" ]]; then
+  resolve_node_binaries
+
+  need_node_install=0
+  if [[ "$current_major" -lt "$MIN_NODE_MAJOR" ]]; then
+    need_node_install=1
+  fi
+
+  if [[ "$need_node_install" -eq 0 ]]; then
     step "Existing Node.js is sufficient: v$(node -v | sed 's/^v//')"
   else
     candidate_major="$(node_major_from_apt_candidate)"
@@ -430,6 +455,21 @@ if confirm_step "4" "Node.js runtime" "Ensure Node.js >= ${MIN_NODE_MAJOR} (pref
   fi
 
   resolve_node_binaries
+  if [[ -z "$NPM_BIN" ]]; then
+    step "npm not found; attempting to install npm package"
+    if apt-cache show npm >/dev/null 2>&1; then
+      apt-get install -y npm || true
+    fi
+    resolve_node_binaries
+  fi
+
+  if [[ -z "$NPM_BIN" ]]; then
+    step "npm still missing; reinstalling Node.js ${NODE_FALLBACK_MAJOR}.x from NodeSource"
+    curl -fsSL "https://deb.nodesource.com/setup_${NODE_FALLBACK_MAJOR}.x" | bash -
+    apt-get install -y nodejs
+    resolve_node_binaries
+  fi
+
   if [[ -z "$NODE_BIN" || -z "$NPM_BIN" ]]; then
     err "Unable to resolve absolute node/npm paths after installation"
     exit 1
