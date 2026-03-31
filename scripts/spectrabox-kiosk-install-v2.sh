@@ -303,16 +303,41 @@ pick_session() {
 
   if [[ -z "$SESSION_NAME" ]]; then
     if [[ "$DISPLAY_MODE" == "wayland" ]]; then
-      SESSION_NAME="rpd-labwc"
-      SESSION_FLAVOR="labwc"
+      if [[ -f /usr/share/wayland-sessions/labwc.desktop ]]; then
+        SESSION_NAME="labwc"
+        SESSION_FLAVOR="labwc"
+      elif [[ -f /usr/share/wayland-sessions/wayfire.desktop ]]; then
+        SESSION_NAME="wayfire"
+        SESSION_FLAVOR="wayfire"
+      else
+        SESSION_NAME="default"
+      fi
     else
       SESSION_NAME="LXDE-pi"
     fi
   fi
 }
 
+session_name_exists() {
+  local session_name="$1"
+
+  if [[ -z "$session_name" ]]; then
+    return 1
+  fi
+
+  if [[ -f "/usr/share/wayland-sessions/${session_name}.desktop" ]]; then
+    return 0
+  fi
+
+  if [[ -f "/usr/share/xsessions/${session_name}.desktop" ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
 verify_boot_desktop_autologin() {
-  local default_target autologin_ok
+  local default_target autologin_ok configured_session
   default_target="$(systemctl get-default 2>/dev/null || true)"
   autologin_ok=0
 
@@ -323,6 +348,13 @@ verify_boot_desktop_autologin() {
   if [[ -d /etc/lightdm ]]; then
     if grep -Rqs "^autologin-user=${PI_USER}$" /etc/lightdm 2>/dev/null; then
       autologin_ok=1
+    fi
+
+    configured_session="$(
+      grep -Rhs '^[[:space:]]*autologin-session=' /etc/lightdm 2>/dev/null | tail -n 1 | cut -d= -f2-
+    )"
+    if [[ -n "$configured_session" ]] && ! session_name_exists "$configured_session"; then
+      return 1
     fi
   else
     autologin_ok=1
