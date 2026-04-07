@@ -16,23 +16,25 @@ This guide covers deploying the SpectraBox application to a Raspberry Pi for pro
 
 The easiest way to deploy SpectraBox is using the complete deployment script that handles everything from system setup to kiosk configuration:
 
-**Method 1: Direct deployment (fastest)**
+**Method 1: One-line internet deployment (recommended)**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install-bootstrap.sh | sudo bash -s -- --yes
 ```
 
-**Method 2: Alternative installation (recommended for compatibility)**
+This bootstrap downloads `spectrabox-kiosk-install-v2.sh` to a temporary file, validates it with `bash -n`, and then executes it. That is more reliable than piping the full installer directly into `bash`.
+
+**Method 2: Download and run locally**
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
-chmod +x spectrabox-kiosk-install.sh
-sudo ./spectrabox-kiosk-install.sh
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install-v2.sh
+chmod +x spectrabox-kiosk-install-v2.sh
+sudo ./spectrabox-kiosk-install-v2.sh --yes
 ```
 
 **Method 3: Manual installation (for advanced users)**
 ```bash
 git clone https://github.com/mattstegner/SpectraBox.git
 cd SpectraBox
-sudo ./scripts/spectrabox-kiosk-install.sh
+sudo ./scripts/spectrabox-kiosk-install-v2.sh
 ```
 
 This complete deployment script will:
@@ -49,15 +51,15 @@ This complete deployment script will:
 - Test the application and start services
 
 **Requirements:**
-- Run as the `pi` user (not root)
+- Run the installer with `sudo`, targeting a normal user account such as `pi`
 - Internet connection for downloading packages and repository
 
 **Installation Method Comparison:**
 
 | Method | Pros | Cons | Best For |
 |--------|------|------|----------|
-| Method 1 (curl pipe) | Fastest, single command | May have compatibility issues on some systems | Most Debian/Ubuntu systems |
-| Method 2 (download first) | Most compatible, avoids piping issues | Requires two commands | Systems with curl/bash compatibility issues |
+| Method 1 (bootstrap) | One command, validates installer before execution | Requires network access to GitHub raw content | Recommended default |
+| Method 2 (download first) | Easy to inspect and rerun locally | Requires extra commands | Systems where you want a local copy |
 | Method 3 (manual install) | Can inspect before running | Manual process | Security-conscious users |
 
 **Troubleshooting Installation Issues:**
@@ -65,15 +67,16 @@ This complete deployment script will:
 If you encounter these common errors, use Method 2:
 - `bash: line 79: cho: command not found`
 - `curl: (23) Failure writing output to destination`
+- `unexpected EOF while looking for matching \`'`
 - Script appears to hang or fail during download
 
 These issues are typically caused by:
-- Terminal encoding problems during curl piping
+- Partial or interrupted script downloads
 - Network interruptions during download
 - Shell compatibility issues with certain Debian configurations
 - Permission problems with temporary file creation during piping
 
-**Note:** The installation script has been designed to be robust and avoid these common issues.
+**Note:** The bootstrap command in Method 1 is preferred because it validates the downloaded installer before execution and avoids running a partial script stream.
 
 ### Basic Deployment (Application Only)
 
@@ -85,7 +88,7 @@ git clone https://github.com/mattstegner/SpectraBox.git /home/pi/spectrabox
 cd /home/pi/spectrabox
 
 # Run the complete installation script
-sudo ./scripts/spectrabox-kiosk-install.sh
+sudo ./scripts/spectrabox-kiosk-install-v2.sh
 ```
 
 This script will:
@@ -232,7 +235,7 @@ The server self-update system is configured through `config/update-config.json`.
   "update": {
     "enabled": true,
     "autoUpdate": false,
-    "updateScript": "./scripts/spectrabox-kiosk-install.sh"
+    "updateScript": "./scripts/spectrabox-kiosk-install-v2.sh"
   },
   "version": {
     "filePath": "./Version.txt",
@@ -419,13 +422,18 @@ export ALLOW_KIOSK_EXIT=true
 ### Installation Issues
 
 **"cho: command not found" error:**
-This error occurs when the deployment script gets corrupted during download via curl piping. 
+This error occurs when a streamed installer gets corrupted or truncated during download. 
 
-*Solution:* Use the alternative installation method:
+*Solution:* Use the bootstrap install or download the installer locally:
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
-chmod +x spectrabox-kiosk-install.sh
-sudo ./spectrabox-kiosk-install.sh
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install-bootstrap.sh | sudo bash -s -- --yes
+```
+
+Or download and run locally:
+```bash
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install-v2.sh
+chmod +x spectrabox-kiosk-install-v2.sh
+sudo ./spectrabox-kiosk-install-v2.sh --yes
 ```
 
 **"curl: (23) Failure writing output to destination" error:**

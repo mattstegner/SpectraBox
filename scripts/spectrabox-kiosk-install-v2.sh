@@ -80,6 +80,9 @@ Examples:
   sudo bash ${SCRIPT_NAME}
   sudo bash ${SCRIPT_NAME} --yes --target-user pi
   sudo bash ${SCRIPT_NAME} --skip-kiosk
+
+Recommended one-line internet install:
+  curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install-bootstrap.sh | sudo bash -s -- --yes
 USAGE
 }
 

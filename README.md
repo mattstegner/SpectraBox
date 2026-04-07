@@ -22,18 +22,20 @@ A real-time spectrum analyzer and audio visualization application designed to ru
 
 The easiest way to get SpectraBox running on a Raspberry Pi is using our automated deployment script:
 
-**Method 1: Direct Installation (fastest)**
+**Method 1: One-Line Internet Install (recommended)**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash -s -- -y
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install-bootstrap.sh | sudo bash -s -- --yes
 ```
 
-**Method 2: Alternative Installation (if you encounter download issues)**
+This uses a small bootstrap script that downloads `spectrabox-kiosk-install-v2.sh` to a temporary file, validates it with `bash -n`, and only then executes it. This is more reliable than piping the full installer directly into `bash`.
+
+**Method 2: Download and Run Locally**
 
 ```bash
-wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh
-chmod +x spectrabox-kiosk-install.sh
-sudo ./spectrabox-kiosk-install.sh
+wget https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install-v2.sh
+chmod +x spectrabox-kiosk-install-v2.sh
+sudo ./spectrabox-kiosk-install-v2.sh --yes
 ```
 
 **Method 3: Manual Installation (for advanced users)**
@@ -41,7 +43,7 @@ sudo ./spectrabox-kiosk-install.sh
 ```bash
 git clone https://github.com/mattstegner/SpectraBox.git
 cd SpectraBox
-sudo ./scripts/spectrabox-kiosk-install.sh
+sudo ./scripts/spectrabox-kiosk-install-v2.sh
 ```
 
 All methods will:
@@ -57,10 +59,10 @@ All methods will:
 - Raspberry Pi 4 or newer (Pi 4 with 2GB+ RAM recommended)
 - Raspberry Pi OS (32-bit or 64-bit)
 - Internet connection
-- Run as the `pi` user (not root)
+- Run the installer with `sudo`, targeting a normal user account such as `pi`
 
 **Troubleshooting Installation Issues:**
-If you encounter errors like "cho: command not found" or "curl: (23) Failure writing output to destination", use Method 2 above, which downloads the script locally first to avoid piping issues.
+If you encounter errors caused by an interrupted internet install, use Method 2 above. The bootstrap command in Method 1 is preferred because it validates the downloaded installer before execution and avoids running a partial script stream.
 
 After installation, access SpectraBox at:
 
