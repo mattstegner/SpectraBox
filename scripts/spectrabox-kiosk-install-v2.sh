@@ -339,10 +339,72 @@ session_name_exists() {
   return 1
 }
 
+ensure_lightdm_setting() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+  local tmp_file
+
+  tmp_file="$(mktemp)"
+
+  if [[ -f "$file" ]] && grep -qE "^[[:space:]]*${key}=" "$file"; then
+    sed -E "s|^[[:space:]]*${key}=.*|${key}=${value}|" "$file" > "$tmp_file"
+  elif [[ -f "$file" ]] && grep -q '^\[Seat:\*\]' "$file"; then
+    awk -v key="$key" -v value="$value" '
+      BEGIN { inserted = 0 }
+      { print }
+      /^\[Seat:\*\]$/ && inserted == 0 {
+        print key "=" value
+        inserted = 1
+      }
+      END {
+        if (inserted == 0) {
+          print ""
+          print "[Seat:*]"
+          print key "=" value
+        }
+      }
+    ' "$file" > "$tmp_file"
+  else
+    if [[ -f "$file" ]]; then
+      cat "$file" > "$tmp_file"
+      printf "\n" >> "$tmp_file"
+    fi
+    printf "[Seat:*]\n%s=%s\n" "$key" "$value" >> "$tmp_file"
+  fi
+
+  install -m 644 "$tmp_file" "$file"
+  rm -f "$tmp_file"
+}
+
+configure_lightdm_autologin() {
+  install -d /etc/lightdm/lightdm.conf.d
+  groupadd -f autologin
+  usermod -aG autologin "$PI_USER"
+
+  if [[ ! -f /etc/lightdm/lightdm.conf ]]; then
+    touch /etc/lightdm/lightdm.conf
+  fi
+
+  ensure_lightdm_setting /etc/lightdm/lightdm.conf autologin-user "$PI_USER"
+  ensure_lightdm_setting /etc/lightdm/lightdm.conf autologin-user-timeout "0"
+  ensure_lightdm_setting /etc/lightdm/lightdm.conf user-session "$SESSION_NAME"
+  ensure_lightdm_setting /etc/lightdm/lightdm.conf autologin-session "$SESSION_NAME"
+
+  cat > /etc/lightdm/lightdm.conf.d/99-spectrabox-autologin.conf <<LIGHTDM_EOF
+[Seat:*]
+autologin-user=${PI_USER}
+autologin-user-timeout=0
+user-session=${SESSION_NAME}
+autologin-session=${SESSION_NAME}
+LIGHTDM_EOF
+}
+
 verify_boot_desktop_autologin() {
-  local default_target autologin_ok configured_session
+  local default_target autologin_ok configured_session group_ok
   default_target="$(systemctl get-default 2>/dev/null || true)"
   autologin_ok=0
+  group_ok=1
 
   if [[ "$default_target" != "graphical.target" ]]; then
     return 1
@@ -356,14 +418,23 @@ verify_boot_desktop_autologin() {
     configured_session="$(
       grep -Rhs '^[[:space:]]*autologin-session=' /etc/lightdm 2>/dev/null | tail -n 1 | cut -d= -f2-
     )"
+    if [[ -z "$configured_session" ]]; then
+      configured_session="$(
+        grep -Rhs '^[[:space:]]*user-session=' /etc/lightdm 2>/dev/null | tail -n 1 | cut -d= -f2-
+      )"
+    fi
     if [[ -n "$configured_session" ]] && ! session_name_exists "$configured_session"; then
       return 1
+    fi
+
+    if getent group autologin >/dev/null 2>&1 && ! id -nG "$PI_USER" | tr ' ' '\n' | grep -qx autologin; then
+      group_ok=0
     fi
   else
     autologin_ok=1
   fi
 
-  if [[ "$autologin_ok" -eq 1 ]]; then
+  if [[ "$autologin_ok" -eq 1 && "$group_ok" -eq 1 ]]; then
     return 0
   fi
 
@@ -706,19 +777,17 @@ elif confirm_step "10" "Desktop boot + autologin" "Use raspi-config first, verif
     step "raspi-config unavailable; using LightDM fallback only"
   fi
 
+  groupadd -f autologin
+  if ! id -nG "$PI_USER" | tr ' ' '\n' | grep -qx autologin; then
+    step "Adding ${PI_USER} to autologin group"
+    usermod -aG autologin "$PI_USER"
+  fi
+
   if verify_boot_desktop_autologin; then
     ok "Desktop boot/autologin verified"
   else
     warn "Primary boot config verification failed; applying LightDM fallback"
-
-    install -d /etc/lightdm/lightdm.conf.d
-    cat > /etc/lightdm/lightdm.conf.d/99-spectrabox-autologin.conf <<LIGHTDM_EOF
-[Seat:*]
-autologin-user=${PI_USER}
-autologin-user-timeout=0
-user-session=${SESSION_NAME}
-autologin-session=${SESSION_NAME}
-LIGHTDM_EOF
+    configure_lightdm_autologin
 
     if verify_boot_desktop_autologin; then
       ok "Autologin verified after LightDM fallback"

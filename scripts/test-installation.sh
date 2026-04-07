@@ -123,6 +123,19 @@ else
     log_warning "Autostart not configured"
 fi
 
+# Test 10b: Check if desktop autologin is configured
+log_info "Test 10b: Checking desktop autologin configuration..."
+if systemctl get-default 2>/dev/null | grep -qx 'graphical.target'; then
+    AUTOLOGIN_USER="$(grep -Rhs '^[[:space:]]*autologin-user=' /etc/lightdm 2>/dev/null | tail -n 1 | cut -d= -f2-)"
+    if [[ "$AUTOLOGIN_USER" == "$PI_USER" ]] && id -nG "$PI_USER" 2>/dev/null | tr ' ' '\n' | grep -qx 'autologin'; then
+        log_success "Desktop autologin is configured for $PI_USER"
+    else
+        log_warning "Desktop autologin is not fully configured"
+    fi
+else
+    log_warning "System is not configured to boot to graphical.target"
+fi
+
 # Test 11: Check if browser is installed
 log_info "Test 11: Checking browser installation..."
 if command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1 || command -v firefox-esr >/dev/null 2>&1; then
