@@ -33,6 +33,16 @@ describe('Installer Script Regressions', () => {
     expect(script).toContain("grep -Rhs '^[[:space:]]*autologin-session=' /etc/lightdm");
   });
 
+  test('wayland boot flow skips raspi-config B4 and relies on session-aware autologin config', () => {
+    const script = fs.readFileSync(installerPath, 'utf8');
+
+    expect(script).toContain('if [[ "$DISPLAY_MODE" == "x11" ]]; then');
+    expect(script).toContain('step "Applying raspi-config desktop autologin (B4) for X11"');
+    expect(script).toContain(
+      'step "Skipping raspi-config boot behaviour on Wayland; using session-aware autologin config"'
+    );
+  });
+
   test('apt operations keep locally modified conffiles during unattended installs', () => {
     const script = fs.readFileSync(installerPath, 'utf8');
 

@@ -782,8 +782,12 @@ elif confirm_step "10" "Desktop boot + autologin" "Use raspi-config first, verif
   systemctl set-default graphical.target 2>/dev/null || true
 
   if command -v raspi-config >/dev/null 2>&1; then
-    step "Applying raspi-config desktop autologin (B4)"
-    raspi-config nonint do_boot_behaviour B4 2>/dev/null || true
+    if [[ "$DISPLAY_MODE" == "x11" ]]; then
+      step "Applying raspi-config desktop autologin (B4) for X11"
+      raspi-config nonint do_boot_behaviour B4 2>/dev/null || true
+    else
+      step "Skipping raspi-config boot behaviour on Wayland; using session-aware autologin config"
+    fi
   else
     step "raspi-config unavailable; using LightDM fallback only"
   fi
