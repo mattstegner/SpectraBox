@@ -32,4 +32,13 @@ describe('Installer Script Regressions', () => {
     expect(script).toContain('if [[ "$default_target" != "graphical.target" ]]; then');
     expect(script).toContain("grep -Rhs '^[[:space:]]*autologin-session=' /etc/lightdm");
   });
+
+  test('apt operations keep locally modified conffiles during unattended installs', () => {
+    const script = fs.readFileSync(installerPath, 'utf8');
+
+    expect(script).toContain('-o Dpkg::Options::=--force-confdef');
+    expect(script).toContain('-o Dpkg::Options::=--force-confold');
+    expect(script).toContain('apt_get_safe upgrade -y');
+    expect(script).toContain('apt_get_safe install -y "$BROWSER_PKG"');
+  });
 });

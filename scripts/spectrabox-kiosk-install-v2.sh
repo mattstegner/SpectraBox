@@ -63,6 +63,17 @@ err()    { echo -e "\033[1;31m[ERR]\033[0m $*"; }
 step()   { echo -e "   - $*"; }
 hr()     { echo "------------------------------------------------------------"; }
 
+# Keep locally modified conffiles during unattended apt operations.
+# This avoids dpkg prompts for files like /etc/chromium/master_preferences.
+APT_DPKG_OPTIONS=(
+  -o Dpkg::Options::=--force-confdef
+  -o Dpkg::Options::=--force-confold
+)
+
+apt_get_safe() {
+  apt-get "${APT_DPKG_OPTIONS[@]}" "$@"
+}
+
 usage() {
   cat <<USAGE
 Usage: sudo bash ${SCRIPT_NAME} [options]
@@ -464,18 +475,18 @@ CURRENT_STEP="system update"
 if confirm_step "1" "System update + base packages" "Update APT and install core packages"; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get upgrade -y
+  apt_get_safe upgrade -y
 
-  apt-get install -y --no-install-recommends \
+  apt_get_safe install -y --no-install-recommends \
     ca-certificates curl wget git jq xdg-utils \
     libnss3 libatk1.0-0 libxss1 libasound2 \
     alsa-utils openssl
 
   if [[ "$DISPLAY_MODE" == "x11" ]]; then
-    apt-get install -y --no-install-recommends xdotool unclutter
+    apt_get_safe install -y --no-install-recommends xdotool unclutter
     step "Installed X11 helpers (xdotool, unclutter)"
   else
-    apt-get install -y --no-install-recommends wtype || true
+    apt_get_safe install -y --no-install-recommends wtype || true
     step "Installed Wayland helper (wtype, best effort)"
   fi
 
@@ -495,7 +506,7 @@ elif confirm_step "2" "Desktop environment (Pi OS)" "Ensure Raspberry Pi desktop
         warn "pi-greeter is already installed; skipping raspberrypi-ui-mods to avoid package conflict"
       else
         step "Installing raspberrypi-ui-mods (best effort)"
-        if ! apt-get install -y raspberrypi-ui-mods; then
+        if ! apt_get_safe install -y raspberrypi-ui-mods; then
           warn "raspberrypi-ui-mods installation failed; continuing because this package is optional for kiosk setup"
         fi
       fi
@@ -515,7 +526,7 @@ CURRENT_STEP="audio stack"
 if [[ "$SKIP_AUDIO" -eq 1 ]]; then
   warn "Skipped audio setup (--skip-audio)"
 elif confirm_step "3" "Audio stack" "Install PipeWire/WirePlumber with PulseAudio compatibility"; then
-  apt-get install -y --no-install-recommends \
+  apt_get_safe install -y --no-install-recommends \
     pipewire-audio wireplumber libspa-0.2-bluetooth pipewire-pulse
 
   usermod -aG audio,video "$PI_USER" || true
@@ -546,11 +557,11 @@ if confirm_step "4" "Node.js runtime" "Ensure Node.js >= ${MIN_NODE_MAJOR} (pref
 
     if [[ "$candidate_major" -ge "$MIN_NODE_MAJOR" ]]; then
       step "Installing Node.js from distro repositories"
-      apt-get install -y nodejs
+      apt_get_safe install -y nodejs
     else
       step "Installing Node.js ${NODE_FALLBACK_MAJOR}.x from NodeSource"
       curl -fsSL "https://deb.nodesource.com/setup_${NODE_FALLBACK_MAJOR}.x" | bash -
-      apt-get install -y nodejs
+      apt_get_safe install -y nodejs
     fi
 
     current_major="$(node_major_from_bin)"
@@ -564,7 +575,7 @@ if confirm_step "4" "Node.js runtime" "Ensure Node.js >= ${MIN_NODE_MAJOR} (pref
   if [[ -z "$NPM_BIN" ]]; then
     step "npm not found; attempting to install npm package"
     if apt-cache show npm >/dev/null 2>&1; then
-      apt-get install -y npm || true
+      apt_get_safe install -y npm || true
     fi
     resolve_node_binaries
   fi
@@ -572,7 +583,7 @@ if confirm_step "4" "Node.js runtime" "Ensure Node.js >= ${MIN_NODE_MAJOR} (pref
   if [[ -z "$NPM_BIN" ]]; then
     step "npm still missing; reinstalling Node.js ${NODE_FALLBACK_MAJOR}.x from NodeSource"
     curl -fsSL "https://deb.nodesource.com/setup_${NODE_FALLBACK_MAJOR}.x" | bash -
-    apt-get install -y nodejs
+    apt_get_safe install -y nodejs
     resolve_node_binaries
   fi
 
@@ -607,7 +618,7 @@ if confirm_step "5" "Browser install" "Install chromium/chromium-browser or fire
     exit 1
   fi
 
-  apt-get install -y "$BROWSER_PKG"
+  apt_get_safe install -y "$BROWSER_PKG"
 
   BROWSER_BIN="$(command -v chromium || true)"
   BROWSER_BIN="${BROWSER_BIN:-$(command -v chromium-browser || true)}"
