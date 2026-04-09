@@ -187,7 +187,7 @@ describe('Deployment Configuration Support', () => {
     test('should verify update script exists and is executable', () => {
       // Create a mock update script
       const scriptsDir = path.join(testDir, 'scripts');
-      const scriptPath = path.join(scriptsDir, 'spectrabox-kiosk-install.sh');
+      const scriptPath = path.join(scriptsDir, 'spectrabox-kiosk-install-v2.sh');
       
       fs.mkdirSync(scriptsDir, { recursive: true });
       fs.writeFileSync(scriptPath, '#!/bin/bash\necho "test"');
@@ -208,7 +208,7 @@ describe('Deployment Configuration Support', () => {
       configManager.configPath = configFile;
       const config = await configManager.loadConfig();
       
-      expect(config.update.updateScript).toBe('./scripts/spectrabox-kiosk-install.sh');
+      expect(config.update.updateScript).toBe('./scripts/spectrabox-kiosk-install-v2.sh');
       
       // Script doesn't exist in test directory, but configuration should still be valid
       const scriptPath = path.join(testDir, config.update.updateScript);

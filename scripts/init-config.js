@@ -23,7 +23,7 @@ const DEFAULT_CONFIG = {
     enabled: true,
     checkInterval: 3600000,
     autoUpdate: false,
-    updateScript: './scripts/spectrabox-kiosk-install.sh',
+    updateScript: './scripts/spectrabox-kiosk-install-v2.sh',
     backupBeforeUpdate: true,
     maxUpdateAttempts: 3,
     updateTimeout: 600000,

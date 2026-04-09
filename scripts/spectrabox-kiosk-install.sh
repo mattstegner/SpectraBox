@@ -43,6 +43,15 @@ err()    { echo -e "\033[1;31m✖ $*\033[0m"; }
 step()   { echo -e "   - $*"; }
 hr()     { echo "------------------------------------------------------------"; }
 
+APT_DPKG_OPTIONS=(
+  -o Dpkg::Options::=--force-confdef
+  -o Dpkg::Options::=--force-confold
+)
+
+apt_get_safe() {
+  apt-get "${APT_DPKG_OPTIONS[@]}" "$@"
+}
+
 confirm_step() {
   # $1 = step number, $2 = title, $3 = 1-line synopsis
   local NUM="$1" TITLE="$2" SYN="$3" ans
@@ -95,19 +104,19 @@ CURRENT_STEP="system update"
 if confirm_step "1" "System update & base packages" "Update/upgrade APT and install core tools + libs needed by Chromium and audio"; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get upgrade -y
-  apt-get install -y --no-install-recommends \
+  apt_get_safe upgrade -y
+  apt_get_safe install -y --no-install-recommends \
     ca-certificates curl wget git jq xdg-utils \
     libnss3 libatk1.0-0 libxss1 libasound2 \
     alsa-utils openssl
 
   # X11 tools only if not using Wayland
   if [[ "${DISPLAY_SERVER}" == "x11" ]]; then
-    apt-get install -y --no-install-recommends xdotool unclutter
+    apt_get_safe install -y --no-install-recommends xdotool unclutter
     step "Installed X11 tools (xdotool, unclutter)"
   else
     # Wayland alternatives (wtype for keyboard simulation if needed)
-    apt-get install -y --no-install-recommends wtype || true
+    apt_get_safe install -y --no-install-recommends wtype || true
     step "Skipped X11 tools (Wayland system)"
   fi
   ok "System packages installed/updated"
@@ -136,6 +145,7 @@ if confirm_step "2" "Desktop Environment (Raspberry Pi OS)" "Ensure raspberrypi-
       # --force-confnew: Use new config files without prompting
       DEBIAN_FRONTEND=noninteractive apt-get install -y \
         -o Dpkg::Options::="--force-overwrite" \
+        -o Dpkg::Options::="--force-confdef" \
         -o Dpkg::Options::="--force-confnew" \
         raspberrypi-ui-mods
       ok "Raspberry Pi Desktop installed"
@@ -156,7 +166,7 @@ CURRENT_STEP="audio stack"
 if confirm_step "3" "Audio stack: PipeWire with PulseAudio compatibility" "Install PipeWire/WirePlumber with PulseAudio compatibility layer; add user to audio/video groups"; then
   # Install PipeWire with PulseAudio compatibility layer
   # This allows PipeWire to coexist with desktop components that depend on PulseAudio
-  apt-get install -y --no-install-recommends \
+  apt_get_safe install -y --no-install-recommends \
     pipewire-audio wireplumber libspa-0.2-bluetooth \
     pipewire-pulse
 
@@ -179,7 +189,7 @@ CURRENT_STEP="node install"
 if confirm_step "4" "Install Node.js ${NODE_MAJOR}.x (NodeSource if needed)" "Install or update Node to v${NODE_MAJOR}.x so the server can run"; then
   if ! command -v node >/dev/null 2>&1 || ! node -v | grep -qE "^v${NODE_MAJOR}\."; then
     curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
-    apt-get install -y nodejs
+    apt_get_safe install -y nodejs
   fi
   step "Node: $(node -v 2>/dev/null || echo 'not found')"
   step "npm : $(npm -v 2>/dev/null || echo 'not found')"
@@ -205,7 +215,7 @@ if confirm_step "5" "Choose and install browser (Chromium/Firefox fallback)" "De
     err "No supported browser package found in APT (chromium/chromium-browser/firefox-esr)."
     exit 1
   fi
-  apt-get install -y "$BROWSER_PKG"
+  apt_get_safe install -y "$BROWSER_PKG"
 
   # Resolve the runtime binary
   BROWSER_BIN="$(command -v chromium || true)"

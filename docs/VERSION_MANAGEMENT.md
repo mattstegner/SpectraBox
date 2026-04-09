@@ -29,7 +29,7 @@ The update system is configured through `config/update-config.json`:
     "enabled": true,
     "checkInterval": 3600000,
     "autoUpdate": false,
-    "updateScript": "./scripts/spectrabox-kiosk-install.sh",
+    "updateScript": "./scripts/spectrabox-kiosk-install-v2.sh",
     "backupBeforeUpdate": true,
     "maxUpdateAttempts": 3,
     "updateTimeout": 600000
@@ -67,7 +67,7 @@ The update system is configured through `config/update-config.json`:
 - `enabled`: Enable/disable update functionality (default: true)
 - `checkInterval`: Interval between automatic update checks in milliseconds
 - `autoUpdate`: Enable automatic updates without user confirmation (default: false)
-- `updateScript`: Path to the update script (default: "./scripts/spectrabox-kiosk-install.sh")
+- `updateScript`: Path to the update script (default: "./scripts/spectrabox-kiosk-install-v2.sh")
 - `backupBeforeUpdate`: Create backup before updating (default: true)
 - `maxUpdateAttempts`: Maximum number of update attempts (default: 3)
 - `updateTimeout`: Timeout for update process in milliseconds (default: 600000)
@@ -145,7 +145,7 @@ When `autoUpdate` is enabled in configuration:
 
 ### Update Script
 
-The default update script (`scripts/spectrabox-kiosk-install.sh`) performs:
+The default update script (`scripts/spectrabox-kiosk-install-v2.sh`) performs:
 
 1. **System Updates**: Updates system packages
 2. **Dependency Installation**: Installs/updates Node.js and dependencies
@@ -284,7 +284,7 @@ During initial deployment:
 
 The update script requires:
 
-- Execute permissions: `chmod +x scripts/spectrabox-kiosk-install.sh`
+- Execute permissions: `chmod +x scripts/spectrabox-kiosk-install-v2.sh`
 - Sudo access for system operations
 - Write access to application directory
 - Network access for downloading updates
@@ -319,7 +319,7 @@ chown pi:pi Version.txt
 **Solution**:
 
 ```bash
-chmod +x scripts/spectrabox-kiosk-install.sh
+chmod +x scripts/spectrabox-kiosk-install-v2.sh
 ```
 
 #### GitHub API Rate Limiting

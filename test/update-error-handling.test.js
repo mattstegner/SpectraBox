@@ -46,7 +46,7 @@ describe('Update Error Handling and Recovery', () => {
       // Mock fs.existsSync to return false for update script
       const originalExistsSync = fs.existsSync;
       fs.existsSync = jest.fn((filePath) => {
-        if (filePath.includes('spectrabox-kiosk-install.sh')) {
+        if (filePath.includes('spectrabox-kiosk-install-v2.sh')) {
           return false;
         }
         return originalExistsSync(filePath);
@@ -68,7 +68,7 @@ describe('Update Error Handling and Recovery', () => {
       // Mock fs.accessSync to throw permission error
       const originalAccessSync = fs.accessSync;
       fs.accessSync = jest.fn((filePath, mode) => {
-        if (filePath.includes('spectrabox-kiosk-install.sh')) {
+        if (filePath.includes('spectrabox-kiosk-install-v2.sh')) {
           const error = new Error('Permission denied');
           error.code = 'EACCES';
           throw error;
@@ -120,7 +120,7 @@ describe('Update Error Handling and Recovery', () => {
       await new Promise(resolve => setTimeout(resolve, 200));
 
       // Verify spawn was called with correct parameters
-      expect(spawn).toHaveBeenCalledWith('sudo', ['bash', expect.stringContaining('spectrabox-kiosk-install.sh')], expect.any(Object));
+      expect(spawn).toHaveBeenCalledWith('sudo', ['bash', expect.stringContaining('spectrabox-kiosk-install-v2.sh')], expect.any(Object));
     });
 
     test('should handle script startup failure', async () => {

@@ -1754,7 +1754,7 @@ async function validateUpdatePrerequisites(updateLogger, updateAttempt) {
     
     // Security: Validate script path to prevent path traversal
     const scriptsDir = path.join(__dirname, 'scripts');
-    const updateScriptPath = path.join(scriptsDir, 'spectrabox-kiosk-install.sh');
+    const updateScriptPath = path.join(scriptsDir, 'spectrabox-kiosk-install-v2.sh');
     
     // Security: Ensure the resolved path is within the expected directory
     const resolvedScriptPath = path.resolve(updateScriptPath);
@@ -1766,7 +1766,7 @@ async function validateUpdatePrerequisites(updateLogger, updateAttempt) {
     
     // Security: Validate script filename
     const scriptFilename = path.basename(resolvedScriptPath);
-    const allowedScriptName = 'spectrabox-kiosk-install.sh';
+    const allowedScriptName = 'spectrabox-kiosk-install-v2.sh';
     
     if (scriptFilename !== allowedScriptName) {
       throw new Error(`Invalid update script name: ${scriptFilename}. Expected: ${allowedScriptName}`);

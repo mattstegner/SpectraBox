@@ -183,7 +183,7 @@ git push origin feature/new-release
 For new installations:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install-bootstrap.sh | sudo bash -s -- --yes
 ```
 ````
 
@@ -345,17 +345,17 @@ If you need to update the deployment process:
 
 #### 1. Update the Script
 
-Edit `scripts/spectrabox-kiosk-install.sh` with your changes.
+Edit `scripts/spectrabox-kiosk-install-v2.sh` with your changes.
 
 #### 2. Test Thoroughly
 
 ```bash
 # Test on a clean Raspberry Pi
-./scripts/spectrabox-kiosk-install.sh
+./scripts/spectrabox-kiosk-install-v2.sh
 
 # Test update scenarios
 # (on a system with existing installation)
-./scripts/spectrabox-kiosk-install.sh
+./scripts/spectrabox-kiosk-install-v2.sh
 ```
 
 #### 3. Update Documentation
@@ -671,7 +671,7 @@ git push origin main
 New users can install with:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/mattstegner/SpectraBox/main/scripts/spectrabox-kiosk-install-bootstrap.sh | sudo bash -s -- --yes
 ```
 ````
 

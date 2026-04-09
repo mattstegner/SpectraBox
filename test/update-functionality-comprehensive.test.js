@@ -345,7 +345,7 @@ describe('Comprehensive Update Functionality Test Suite', () => {
       // Verify script was called
       expect(spawn).toHaveBeenCalledWith(
         'sudo',
-        ['bash', expect.stringContaining('spectrabox-kiosk-install.sh')],
+        ['bash', expect.stringContaining('spectrabox-kiosk-install-v2.sh')],
         expect.any(Object)
       );
 
@@ -501,7 +501,7 @@ describe('Comprehensive Update Functionality Test Suite', () => {
       // Mock fs.existsSync to return false for update script
       const originalExistsSync = fs.existsSync;
       fs.existsSync = jest.fn((filePath) => {
-        if (filePath.includes('spectrabox-kiosk-install.sh')) {
+        if (filePath.includes('spectrabox-kiosk-install-v2.sh')) {
           return false;
         }
         return originalExistsSync(filePath);
